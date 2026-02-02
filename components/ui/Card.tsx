@@ -4,12 +4,17 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   title?: string;
+  noPadding?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', title }) => {
+export const Card: React.FC<CardProps> = ({ children, className = '', title, noPadding = false }) => {
   return (
-    <div className={`bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 ${className}`}>
-      {title && <h3 className="text-lg font-semibold text-slate-100 mb-4">{title}</h3>}
+    <div className={`bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl overflow-hidden ${noPadding ? '' : 'p-6'} ${className}`}>
+      {title && (
+        <div className="px-6 pt-6 pb-2">
+          <h3 className="text-lg font-bold text-white">{title}</h3>
+        </div>
+      )}
       {children}
     </div>
   );

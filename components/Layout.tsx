@@ -1,22 +1,27 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  LayoutDashboard, 
-  Video, 
-  History, 
-  Settings, 
-  LogOut, 
-  Coins,
+  Home,
+  Wand2,
+  Library,
+  FolderOpen,
+  Bell,
+  User as UserIcon,
+  Crown,
+  LayoutDashboard,
+  Video,
+  History,
   ShieldCheck,
-  Menu,
-  X
+  LogOut,
+  Settings
 } from 'lucide-react';
+import { Button } from './ui/Button';
 
 export const Layout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -26,11 +31,10 @@ export const Layout: React.FC = () => {
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
     <NavLink
       to={to}
-      onClick={() => setMobileMenuOpen(false)}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
           isActive 
-            ? 'bg-violet-600/10 text-violet-400 border border-violet-600/20' 
+            ? 'bg-gradient-to-r from-violet-600/20 to-violet-600/10 text-violet-300 font-medium' 
             : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
         }`
       }
@@ -41,78 +45,125 @@ export const Layout: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex bg-slate-900 text-slate-100">
-      {/* Sidebar for Desktop */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-900/95 fixed h-full z-20">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400 brand-font">
-            DANCEGEN
-          </h1>
+    <div className="min-h-screen flex bg-black text-slate-100 font-sans selection:bg-violet-500/30">
+      
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col w-72 border-r border-slate-800/50 bg-black fixed h-full z-20 p-4">
+        <div className="px-4 py-4 mb-6 flex items-center gap-2">
+           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font text-xl shadow-lg shadow-violet-500/20">S</div>
+           <span className="text-xl font-bold text-white brand-font tracking-tight">SUCCESS_AI</span>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-          <NavItem to="/create" icon={Video} label="Create Video" />
-          <NavItem to="/history" icon={History} label="My Videos" />
-          {isAdmin && (
-            <div className="pt-4 mt-4 border-t border-slate-800">
-              <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Admin</p>
-              <NavItem to="/admin" icon={ShieldCheck} label="Admin Panel" />
-            </div>
-          )}
+        <nav className="flex-1 space-y-1">
+          <NavItem to="/dashboard" icon={Home} label="Home" />
+          <NavItem to="/create" icon={Wand2} label="AI Tools" />
+          <NavItem to="/history" icon={Library} label="Library" />
+          <div className="my-4 border-t border-slate-800/50"></div>
+          {isAdmin && <NavItem to="/admin" icon={ShieldCheck} label="Admin" />}
+          <NavItem to="/profile" icon={UserIcon} label="Profile" />
+          <NavItem to="/settings" icon={Settings} label="Settings" />
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-900">
-          <div className="flex items-center gap-3 px-4 py-2 mb-2 bg-slate-800 rounded-lg">
-            <Coins className="text-yellow-400" size={16} />
-            <span className="font-mono font-bold text-yellow-400">{user?.coins.toLocaleString()}</span>
-            <span className="text-xs text-slate-400">Coins</span>
+        <div className="mt-auto pt-4 border-t border-slate-800/50">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 border border-slate-700/50 mb-4">
+             <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-400">Credits</span>
+                <span className="text-xs font-bold text-yellow-400">{user?.coins}</span>
+             </div>
+             <div className="w-full bg-slate-700 rounded-full h-1.5 mb-3">
+                <div className="bg-yellow-400 h-1.5 rounded-full" style={{ width: '40%' }}></div>
+             </div>
+             <Button variant="primary" className="w-full text-xs h-8 bg-gradient-to-r from-violet-600 to-indigo-600 border-0">Upgrade Plan</Button>
           </div>
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-2 text-slate-400 hover:text-red-400 transition-colors"
+            className="flex items-center gap-3 w-full px-4 py-2 text-slate-500 hover:text-red-400 transition-colors text-sm font-medium"
           >
-            <LogOut size={20} />
-            Logout
+            <LogOut size={16} />
+            Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed w-full z-30 bg-slate-900 border-b border-slate-800 flex items-center justify-between p-4">
-        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400 brand-font">
-          DANCEGEN
-        </h1>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-100">
-          {mobileMenuOpen ? <X /> : <Menu />}
-        </button>
-      </div>
+      {/* Main Content Area */}
+      <main className="flex-1 md:pl-72 min-h-screen pb-20 md:pb-0 relative bg-black">
+        
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl border-b border-slate-800/50 px-4 py-3 md:px-8 flex items-center justify-between">
+           {/* Mobile Logo */}
+           <div className="md:hidden flex items-center gap-2">
+             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font shadow-lg shadow-violet-500/20">S</div>
+             <span className="font-bold text-lg brand-font">SUCCESS_AI</span>
+           </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-20 bg-slate-900 pt-20 px-4 md:hidden">
-           <nav className="space-y-2">
-            <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem to="/create" icon={Video} label="Create Video" />
-            <NavItem to="/history" icon={History} label="My Videos" />
-            {isAdmin && <NavItem to="/admin" icon={ShieldCheck} label="Admin Panel" />}
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-4 py-3 text-red-400 bg-red-400/10 rounded-lg mt-8"
-            >
-              <LogOut size={20} />
-              Logout
-            </button>
-          </nav>
-        </div>
-      )}
+           {/* Desktop Search Bar Mock */}
+           <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-full px-4 py-2 w-96 text-sm text-slate-400">
+              <Wand2 size={14} className="mr-2" />
+              <span>Try "Cinematic trailer..."</span>
+           </div>
 
-      {/* Main Content */}
-      <main className="flex-1 md:pl-64 pt-20 md:pt-0 min-h-screen">
-        <div className="max-w-7xl mx-auto p-4 md:p-8">
+           {/* Right Actions */}
+           <div className="flex items-center gap-3">
+              <Button className="hidden md:flex h-9 px-4 rounded-full bg-green-500 hover:bg-green-400 text-slate-900 font-bold text-sm items-center gap-1 shadow-[0_0_15px_rgba(34,197,94,0.3)] border-0">
+                <Crown size={14} fill="currentColor" /> Upgrade
+              </Button>
+              <Button className="md:hidden h-8 px-3 rounded-full bg-green-500 hover:bg-green-400 text-slate-900 font-bold text-xs flex items-center gap-1 shadow-lg border-0">
+                <Crown size={12} fill="currentColor" /> Pro
+              </Button>
+
+              <button className="relative p-2 text-slate-400 hover:text-white transition-colors">
+                 <Bell size={20} />
+                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-black"></span>
+              </button>
+              
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-600 border border-slate-500 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:ring-2 hover:ring-violet-500/50 transition-all">
+                 {user?.name.charAt(0)}
+              </div>
+           </div>
+        </header>
+
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
           <Outlet />
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-black border-t border-slate-800 z-50 pb-safe">
+        <div className="grid grid-cols-4 h-16">
+          <NavLink to="/dashboard" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
+            {({ isActive }) => (
+              <>
+                <Home size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">Home</span>
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/create" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
+            {({ isActive }) => (
+              <>
+                <Wand2 size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">Tools</span>
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/history" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
+            {({ isActive }) => (
+              <>
+                <Library size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">Library</span>
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/assets" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
+            {({ isActive }) => (
+              <>
+                <FolderOpen size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">Assets</span>
+              </>
+            )}
+          </NavLink>
+        </div>
+      </nav>
     </div>
   );
 };
