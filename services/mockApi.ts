@@ -1,4 +1,4 @@
-import { User, UserRole, VideoJob, GenerationStatus, VideoConfig } from '../types';
+import { User, UserRole, SubscriptionTier, VideoJob, GenerationStatus, VideoConfig } from '../types';
 import { ADMIN_EMAIL, SIGNUP_BONUS, GENERATION_COST, MOCK_ADMIN_STATS } from '../constants';
 
 // In-memory mock database
@@ -8,6 +8,7 @@ let users: User[] = [
     email: ADMIN_EMAIL,
     name: 'Super Admin',
     role: UserRole.ADMIN,
+    subscription: SubscriptionTier.PREMIUM,
     coins: 999999,
     joinedDate: new Date().toISOString(),
     isBanned: false,
@@ -17,6 +18,7 @@ let users: User[] = [
     email: 'demo@example.com',
     name: 'Demo User',
     role: UserRole.USER,
+    subscription: SubscriptionTier.FREE,
     coins: 100,
     joinedDate: new Date().toISOString(),
     isBanned: false,
@@ -42,20 +44,34 @@ export const mockApi = {
   login: async (email: string): Promise<User> => {
     await new Promise(resolve => setTimeout(resolve, 800)); // Simulate latency
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
     if (!user) throw new Error('User not found');
     if (user.isBanned) throw new Error('Account suspended');
+
+    // Automatic Admin Role Assignment Check on Login
+    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && user.role !== UserRole.ADMIN) {
+      user.role = UserRole.ADMIN;
+      user.subscription = SubscriptionTier.PREMIUM;
+    }
+
     return user;
   },
 
   signup: async (email: string, name: string): Promise<User> => {
     await new Promise(resolve => setTimeout(resolve, 800));
-    if (users.find(u => u.email === email)) throw new Error('Email already exists');
+    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+      throw new Error('Email already exists');
+    }
     
+    // Automatic Admin Role Assignment Logic
+    const isAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
     const newUser: User = {
       id: `user-${Date.now()}`,
       email,
       name,
-      role: email === ADMIN_EMAIL ? UserRole.ADMIN : UserRole.USER,
+      role: isAdmin ? UserRole.ADMIN : UserRole.USER,
+      subscription: isAdmin ? SubscriptionTier.PREMIUM : SubscriptionTier.FREE,
       coins: SIGNUP_BONUS,
       joinedDate: new Date().toISOString(),
       isBanned: false,
@@ -94,6 +110,13 @@ export const mockApi = {
     const user = users.find(u => u.id === userId);
     if (user && user.email !== ADMIN_EMAIL) {
       user.isBanned = ban;
+    }
+  },
+
+  updateUserSubscription: async (userId: string, tier: SubscriptionTier): Promise<void> => {
+    const user = users.find(u => u.id === userId);
+    if (user && user.email !== ADMIN_EMAIL) {
+      user.subscription = tier;
     }
   },
 

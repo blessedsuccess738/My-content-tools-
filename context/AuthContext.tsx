@@ -4,8 +4,8 @@ import { mockApi } from '../services/mockApi';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => Promise<void>;
-  signup: (email: string, name: string) => Promise<void>;
+  login: (email: string) => Promise<User>;
+  signup: (email: string, name: string) => Promise<User>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
@@ -32,18 +32,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const login = async (email: string) => {
+  const login = async (email: string): Promise<User> => {
     const u = await mockApi.login(email);
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem('dancegen_user_id', u.id);
+    return u;
   };
 
-  const signup = async (email: string, name: string) => {
+  const signup = async (email: string, name: string): Promise<User> => {
     const u = await mockApi.signup(email, name);
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem('dancegen_user_id', u.id);
+    return u;
   };
 
   const logout = () => {

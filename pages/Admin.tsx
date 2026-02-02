@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { mockApi } from '../services/mockApi';
-import { User, SystemStats } from '../types';
+import { User, SystemStats, SubscriptionTier } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Users, Video, DollarSign, Ban, RefreshCw, CheckCircle } from 'lucide-react';
+import { Users, Video, DollarSign, Ban, RefreshCw, CheckCircle, Crown, Shield } from 'lucide-react';
 
 export const Admin: React.FC = () => {
   const { user, isAdmin } = useAuth();
@@ -45,13 +45,23 @@ export const Admin: React.FC = () => {
     loadData();
   };
 
+  const handleSubscriptionChange = async (userId: string, tier: string) => {
+    await mockApi.updateUserSubscription(userId, tier as SubscriptionTier);
+    loadData();
+  };
+
   if (!isAdmin) return <div className="text-center mt-20 text-red-500">Access Denied</div>;
   if (loading) return <div className="text-center mt-20">Loading Admin Panel...</div>;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold text-white brand-font">Admin Dashboard</h2>
+        <div>
+          <h2 className="text-3xl font-bold text-white brand-font flex items-center gap-2">
+            <Shield className="text-violet-500" /> Admin Command Center
+          </h2>
+          <p className="text-slate-400">System overview and user management</p>
+        </div>
         <Button variant="secondary" onClick={loadData}><RefreshCw size={18} /> Refresh</Button>
       </div>
 
@@ -122,13 +132,14 @@ export const Admin: React.FC = () => {
       </div>
 
       {/* User Table */}
-      <Card title="User Management">
+      <Card title="User & Subscription Management">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-700 text-slate-400 uppercase">
               <tr>
                 <th className="p-4">User</th>
                 <th className="p-4">Role</th>
+                <th className="p-4">Plan</th>
                 <th className="p-4">Coins</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -145,6 +156,19 @@ export const Admin: React.FC = () => {
                     <span className={`px-2 py-1 rounded text-xs ${u.role === 'admin' ? 'bg-violet-500/20 text-violet-300' : 'bg-slate-700 text-slate-300'}`}>
                       {u.role}
                     </span>
+                  </td>
+                  <td className="p-4">
+                    <select 
+                      value={u.subscription || SubscriptionTier.FREE}
+                      onChange={(e) => handleSubscriptionChange(u.id, e.target.value)}
+                      disabled={u.role === 'admin'}
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs focus:ring-violet-500 focus:outline-none"
+                    >
+                      <option value="free">Free</option>
+                      <option value="pro">Pro</option>
+                      <option value="premium">Premium</option>
+                    </select>
+                    {u.subscription === SubscriptionTier.PREMIUM && <Crown size={12} className="inline ml-1 text-yellow-400" />}
                   </td>
                   <td className="p-4 font-mono text-yellow-400">{u.coins}</td>
                   <td className="p-4">

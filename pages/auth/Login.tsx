@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { UserRole } from '../../types';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,8 +18,13 @@ export const Login: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email);
-      navigate('/dashboard');
+      const user = await login(email);
+      // Automatic redirection based on role
+      if (user.role === UserRole.ADMIN) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to login');
     } finally {

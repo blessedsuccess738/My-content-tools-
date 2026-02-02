@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { SIGNUP_BONUS } from '../../constants';
+import { UserRole } from '../../types';
 
 export const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,8 +20,13 @@ export const Signup: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await signup(email, name);
-      navigate('/dashboard');
+      const user = await signup(email, name);
+      // Automatic redirection based on role
+      if (user.role === UserRole.ADMIN) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
     } finally {

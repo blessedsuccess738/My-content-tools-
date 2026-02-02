@@ -3,11 +3,18 @@ export enum UserRole {
   ADMIN = 'admin',
 }
 
+export enum SubscriptionTier {
+  FREE = 'free',
+  PRO = 'pro',
+  PREMIUM = 'premium',
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  subscription: SubscriptionTier;
   coins: number;
   joinedDate: string;
   isBanned: boolean;
