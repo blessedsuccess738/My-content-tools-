@@ -1,25 +1,39 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { mockApi } from '../services/mockApi';
-import { DanceMotion, VideoJob, GenerationStatus } from '../types';
+import { DanceMotion, VideoJob, GenerationStatus, VideoConfig, VideoQuality, AspectRatio } from '../types';
 import { MOTION_TEMPLATES, GENERATION_COST } from '../constants';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { Upload, Film, Wand2, ArrowRight, PlayCircle, Loader2, Clock } from 'lucide-react';
+import { Upload, Wand2, ArrowRight, PlayCircle, Clock, Smartphone, Monitor, Square } from 'lucide-react';
 
-const steps = ['Upload Image', 'Select Motion', 'Generate'];
+const steps = ['Upload Image', 'Select Motion', 'Configure', 'Generate'];
 
 export const Create: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
+  
+  // Data State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  
   const [selectedMotion, setSelectedMotion] = useState<DanceMotion | null>(null);
+  const [customMotionFile, setCustomMotionFile] = useState<File | null>(null);
+  const [customMotionPreview, setCustomMotionPreview] = useState<string | null>(null);
+
+  const [config, setConfig] = useState<VideoConfig>({
+    quality: 'medium',
+    duration: 8,
+    aspectRatio: '9:16'
+  });
+
+  // UI State
   const [isGenerating, setIsGenerating] = useState(false);
   const [job, setJob] = useState<VideoJob | null>(null);
   const [error, setError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Polling for job status
   useEffect(() => {
@@ -49,6 +63,22 @@ export const Create: React.FC = () => {
     }
   };
 
+  const handleCustomMotionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('video/')) {
+      setCustomMotionFile(file);
+      setCustomMotionPreview(URL.createObjectURL(file));
+      setSelectedMotion({
+        id: 'custom',
+        name: 'Custom Upload',
+        category: 'Custom',
+        thumbnailUrl: '',
+        duration: 0
+      });
+      setError('');
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -74,7 +104,13 @@ export const Create: React.FC = () => {
     setError('');
 
     try {
-      const newJob = await mockApi.startGeneration(user.id, selectedImage, selectedMotion.id);
+      const newJob = await mockApi.startGeneration(
+        user.id, 
+        selectedImage, 
+        selectedMotion.id,
+        config,
+        customMotionFile
+      );
       setJob(newJob);
       await refreshUser(); // Update coin balance in UI
       setCurrentStep(3); // Wait screen
@@ -158,13 +194,51 @@ export const Create: React.FC = () => {
         {currentStep === 1 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-2xl font-bold mb-2">Select Dance Motion</h2>
-            <p className="text-slate-400 mb-6">Choose a choreography style for your character.</p>
+            <p className="text-slate-400 mb-6">Choose a choreography style or upload your own reference video.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {/* Custom Upload Card */}
+              <div 
+                onClick={() => videoInputRef.current?.click()}
+                className={`cursor-pointer rounded-xl overflow-hidden border-2 border-dashed flex flex-col items-center justify-center bg-slate-800/50 p-6 min-h-[12rem] relative group transition-all ${
+                   selectedMotion?.id === 'custom' ? 'border-violet-500 ring-2 ring-violet-500/50' : 'border-slate-700 hover:border-slate-500'
+                }`}
+              >
+                 <input 
+                  type="file" 
+                  accept="video/*" 
+                  className="hidden" 
+                  ref={videoInputRef} 
+                  onChange={handleCustomMotionUpload} 
+                 />
+                 
+                 {customMotionPreview ? (
+                    <video src={customMotionPreview} className="absolute inset-0 w-full h-full object-cover" muted loop autoPlay />
+                 ) : (
+                   <>
+                     <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mb-4 text-slate-400 group-hover:text-white group-hover:bg-slate-600 transition-colors">
+                       <Upload size={24} />
+                     </div>
+                     <span className="font-bold text-slate-300">Upload Custom</span>
+                     <span className="text-xs text-slate-500 mt-1">MP4, MOV up to 30s</span>
+                   </>
+                 )}
+                 {selectedMotion?.id === 'custom' && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                       <span className="text-white font-bold flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full"></div> Selected</span>
+                    </div>
+                 )}
+              </div>
+
+              {/* Template Cards */}
               {MOTION_TEMPLATES.map((motion) => (
                 <div 
                   key={motion.id}
-                  onClick={() => setSelectedMotion(motion)}
+                  onClick={() => {
+                    setSelectedMotion(motion);
+                    setCustomMotionFile(null);
+                    setCustomMotionPreview(null);
+                  }}
                   className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all relative group ${
                     selectedMotion?.id === motion.id ? 'border-violet-500 ring-2 ring-violet-500/50' : 'border-transparent hover:border-slate-600'
                   }`}
@@ -189,6 +263,94 @@ export const Create: React.FC = () => {
             </div>
 
             <div className="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700">
+              <Button variant="secondary" onClick={() => setCurrentStep(0)}>Back</Button>
+              <Button 
+                disabled={!selectedMotion} 
+                onClick={() => setCurrentStep(2)}
+              >
+                Configure Settings <ArrowRight size={18} />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: CONFIGURE */}
+        {currentStep === 2 && (
+           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
+             <h2 className="text-2xl font-bold mb-2">Video Settings</h2>
+             <p className="text-slate-400 mb-8">Fine-tune your generation output.</p>
+
+             <Card className="space-y-8">
+               {/* Aspect Ratio */}
+               <div>
+                 <label className="block text-sm font-medium text-slate-300 mb-3">Aspect Ratio</label>
+                 <div className="grid grid-cols-3 gap-4">
+                   {[
+                     { id: '9:16', label: 'Story', icon: Smartphone },
+                     { id: '16:9', label: 'Landscape', icon: Monitor },
+                     { id: '1:1', label: 'Square', icon: Square }
+                   ].map((ratio) => (
+                     <button
+                       key={ratio.id}
+                       onClick={() => setConfig({...config, aspectRatio: ratio.id as AspectRatio})}
+                       className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                         config.aspectRatio === ratio.id 
+                           ? 'border-violet-500 bg-violet-500/10 text-white' 
+                           : 'border-slate-700 hover:border-slate-600 text-slate-400'
+                       }`}
+                     >
+                       <ratio.icon size={24} className="mb-2" />
+                       <span className="text-sm font-medium">{ratio.label}</span>
+                       <span className="text-xs opacity-60">{ratio.id}</span>
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               {/* Quality */}
+               <div>
+                 <label className="block text-sm font-medium text-slate-300 mb-3">Generation Quality</label>
+                 <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1 rounded-lg">
+                   {['low', 'medium', 'high'].map((q) => (
+                     <button
+                       key={q}
+                       onClick={() => setConfig({...config, quality: q as VideoQuality})}
+                       className={`py-2 px-4 rounded-md text-sm font-medium capitalize transition-all ${
+                         config.quality === q
+                           ? 'bg-slate-700 text-white shadow-sm'
+                           : 'text-slate-400 hover:text-slate-200'
+                       }`}
+                     >
+                       {q}
+                     </button>
+                   ))}
+                 </div>
+                 <p className="text-xs text-slate-500 mt-2">Higher quality takes longer and consumes more resources.</p>
+               </div>
+
+               {/* Duration */}
+               <div>
+                  <div className="flex justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">Duration</label>
+                    <span className="text-sm font-bold text-violet-400">{config.duration} seconds</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="5" 
+                    max="15" 
+                    step="1"
+                    value={config.duration}
+                    onChange={(e) => setConfig({...config, duration: parseInt(e.target.value)})}
+                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                  />
+                  <div className="flex justify-between mt-1 text-xs text-slate-500">
+                    <span>5s</span>
+                    <span>15s</span>
+                  </div>
+               </div>
+             </Card>
+
+             <div className="flex justify-between items-center mt-8 bg-slate-800 p-4 rounded-xl border border-slate-700">
               <div>
                 <span className="text-slate-400 text-sm">Estimated Cost</span>
                 <div className="flex items-center gap-2 text-yellow-400 font-bold text-xl">
@@ -196,9 +358,8 @@ export const Create: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-4">
-                 <Button variant="secondary" onClick={() => setCurrentStep(0)}>Back</Button>
+                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>Back</Button>
                  <Button 
-                   disabled={!selectedMotion} 
                    onClick={startGeneration}
                    isLoading={isGenerating}
                  >
@@ -207,10 +368,10 @@ export const Create: React.FC = () => {
               </div>
             </div>
             {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
-          </div>
+           </div>
         )}
 
-        {/* STEP 3: PROCESSING / RESULT */}
+        {/* STEP 4: PROCESSING / RESULT */}
         {(currentStep === 3 || job) && (
           <div className="animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center justify-center py-12">
              {job?.status !== GenerationStatus.COMPLETED ? (
@@ -226,10 +387,10 @@ export const Create: React.FC = () => {
                  <p className="text-slate-400 mb-8">AI is extracting pose data and rendering frames. This usually takes about 30-60 seconds.</p>
                  
                  <div className="bg-slate-800 rounded-lg p-4 text-left text-sm font-mono text-slate-400 space-y-2">
-                   <p className={job?.progress! > 10 ? 'text-green-400' : ''}>[OK] Initializing Stable Diffusion pipeline...</p>
+                   <p className={job?.progress! > 10 ? 'text-green-400' : ''}>[OK] Initializing pipeline ({job?.config?.quality} quality)...</p>
                    <p className={job?.progress! > 30 ? 'text-green-400' : ''}>[OK] Extracting skeletal rig from reference...</p>
-                   <p className={job?.progress! > 50 ? 'text-green-400' : ''}>{job?.progress! > 50 ? '[OK]' : '[..]'} Applying ControlNet guidance...</p>
-                   <p className={job?.progress! > 80 ? 'text-green-400' : ''}>{job?.progress! > 80 ? '[OK]' : '[..]'} Stitching frames (AnimateDiff)...</p>
+                   <p className={job?.progress! > 50 ? 'text-green-400' : ''}>{job?.progress! > 50 ? '[OK]' : '[..]'} Applying ControlNet to {job?.config?.aspectRatio} canvas...</p>
+                   <p className={job?.progress! > 80 ? 'text-green-400' : ''}>{job?.progress! > 80 ? '[OK]' : '[..]'} Stitching {job?.config?.duration}s video...</p>
                  </div>
                </div>
              ) : (

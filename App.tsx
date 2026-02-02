@@ -5,6 +5,8 @@ import { Layout } from './components/Layout';
 import { Welcome } from './pages/Welcome';
 import { Login } from './pages/auth/Login';
 import { Signup } from './pages/auth/Signup';
+import { ForgotPassword } from './pages/auth/ForgotPassword';
+import { ResetPassword } from './pages/auth/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Create } from './pages/Create';
 import { Admin } from './pages/Admin';
@@ -34,6 +36,8 @@ function App() {
           <Route path="/" element={<Welcome />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           <Route element={<Layout />}>
             <Route path="/dashboard" element={

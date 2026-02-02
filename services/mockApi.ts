@@ -1,4 +1,4 @@
-import { User, UserRole, VideoJob, GenerationStatus } from '../types';
+import { User, UserRole, VideoJob, GenerationStatus, VideoConfig } from '../types';
 import { ADMIN_EMAIL, SIGNUP_BONUS, GENERATION_COST, MOCK_ADMIN_STATS } from '../constants';
 
 // In-memory mock database
@@ -31,6 +31,7 @@ let jobs: VideoJob[] = [
     progress: 100,
     inputImageUrl: 'https://picsum.photos/400/600',
     motionTemplateId: 'motion-1',
+    config: { quality: 'medium', duration: 8, aspectRatio: '9:16' },
     outputVideoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', // Sample video
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     cost: 50
@@ -63,6 +64,21 @@ export const mockApi = {
     return newUser;
   },
 
+  requestPasswordReset: async (email: string): Promise<void> => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) throw new Error('User not found');
+    // Simulate sending email
+    console.log(`Password reset email sent to ${email}`);
+  },
+
+  resetPassword: async (token: string, password: string): Promise<void> => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (!token) throw new Error('Invalid or expired token');
+    // In a real app, verify token and update user password
+    console.log(`Password successfully updated for token ${token}`);
+  },
+
   getUser: async (id: string): Promise<User> => {
     const user = users.find(u => u.id === id);
     if (!user) throw new Error('User not found');
@@ -88,7 +104,13 @@ export const mockApi = {
     return user;
   },
 
-  startGeneration: async (userId: string, imageFile: File | null, motionId: string): Promise<VideoJob> => {
+  startGeneration: async (
+    userId: string, 
+    imageFile: File | null, 
+    motionId: string, 
+    config: VideoConfig,
+    customMotionFile: File | null
+  ): Promise<VideoJob> => {
     const user = users.find(u => u.id === userId);
     if (!user) throw new Error('User not found');
     if (user.coins < GENERATION_COST) throw new Error('Insufficient coins');
@@ -103,6 +125,8 @@ export const mockApi = {
       progress: 0,
       inputImageUrl: imageFile ? URL.createObjectURL(imageFile) : 'https://picsum.photos/400/600',
       motionTemplateId: motionId,
+      customMotionUrl: customMotionFile ? URL.createObjectURL(customMotionFile) : undefined,
+      config,
       createdAt: new Date().toISOString(),
       cost: GENERATION_COST,
     };

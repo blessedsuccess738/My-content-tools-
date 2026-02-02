@@ -5,7 +5,7 @@ import { User, SystemStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Users, Video, DollarSign, Ban, RefreshCw } from 'lucide-react';
+import { Users, Video, DollarSign, Ban, RefreshCw, CheckCircle } from 'lucide-react';
 
 export const Admin: React.FC = () => {
   const { user, isAdmin } = useAuth();
@@ -149,24 +149,28 @@ export const Admin: React.FC = () => {
                   <td className="p-4 font-mono text-yellow-400">{u.coins}</td>
                   <td className="p-4">
                     {u.isBanned ? (
-                      <span className="text-red-400 flex items-center gap-1"><Ban size={12} /> Banned</span>
+                      <span className="text-red-400 flex items-center gap-1 font-semibold"><Ban size={14} /> Banned</span>
                     ) : (
-                      <span className="text-green-400">Active</span>
+                      <span className="text-green-400 flex items-center gap-1"><CheckCircle size={14} /> Active</span>
                     )}
                   </td>
-                  <td className="p-4 text-right space-x-2">
+                  <td className="p-4 text-right space-x-2 flex justify-end items-center">
                     <button 
                       onClick={() => handleAddCoins(u.id)}
-                      className="text-yellow-400 hover:text-yellow-300 text-xs underline"
+                      className="px-2 py-1 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 rounded text-xs transition-colors"
                     >
                       +500 Coins
                     </button>
                     {u.role !== 'admin' && (
                       <button 
                         onClick={() => handleBan(u.id, u.isBanned)}
-                        className={`${u.isBanned ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300'} text-xs underline`}
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          u.isBanned 
+                            ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' 
+                            : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                        }`}
                       >
-                        {u.isBanned ? 'Unban' : 'Ban'}
+                        {u.isBanned ? 'Unban User' : 'Ban User'}
                       </button>
                     )}
                   </td>

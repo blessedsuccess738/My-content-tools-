@@ -29,6 +29,15 @@ export interface DanceMotion {
   duration: number; // in seconds
 }
 
+export type VideoQuality = 'low' | 'medium' | 'high';
+export type AspectRatio = '9:16' | '16:9' | '1:1';
+
+export interface VideoConfig {
+  quality: VideoQuality;
+  duration: number;
+  aspectRatio: AspectRatio;
+}
+
 export interface VideoJob {
   id: string;
   userId: string;
@@ -36,6 +45,8 @@ export interface VideoJob {
   progress: number; // 0-100
   inputImageUrl: string;
   motionTemplateId: string;
+  customMotionUrl?: string;
+  config: VideoConfig;
   outputVideoUrl?: string;
   createdAt: string;
   cost: number;

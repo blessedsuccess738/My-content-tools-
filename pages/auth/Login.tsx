@@ -63,6 +63,11 @@ export const Login: React.FC = () => {
               placeholder="••••••••"
             />
           </div>
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-sm text-violet-400 hover:text-violet-300">
+              Forgot password?
+            </Link>
+          </div>
           <Button type="submit" className="w-full" isLoading={loading}>
             Sign In
           </Button>
