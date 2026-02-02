@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SUCCESS_AI - The Future of Motion</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', sans-serif;
@@ -14,6 +14,9 @@
       }
       h1, h2, h3, .brand-font {
         font-family: 'Orbitron', sans-serif;
+      }
+      .serif-font {
+        font-family: 'Playfair Display', serif;
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
@@ -34,14 +37,33 @@
       .marquee-container {
         overflow: hidden;
         white-space: nowrap;
+        position: relative;
       }
       .marquee-content {
-        display: inline-block;
-        animation: marquee 20s linear infinite;
+        display: inline-flex;
+        animation: marquee 30s linear infinite;
       }
+      .marquee-content-right {
+        display: inline-flex;
+        animation: marquee-right 30s linear infinite;
+      }
+      
       @keyframes marquee {
         0% { transform: translateX(0); }
         100% { transform: translateX(-50%); }
+      }
+      
+      @keyframes marquee-right {
+        0% { transform: translateX(-50%); }
+        100% { transform: translateX(0); }
+      }
+      
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     </style>
   <script type="importmap">

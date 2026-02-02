@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Home,
@@ -28,21 +28,23 @@ export const Layout: React.FC = () => {
     navigate('/');
   };
 
-  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
+    const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+    
+    return (
+      <div
+        onClick={() => navigate(to)}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
           isActive 
             ? 'bg-gradient-to-r from-violet-600/20 to-violet-600/10 text-violet-300 font-medium' 
             : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
-        }`
-      }
-    >
-      <Icon size={20} />
-      <span>{label}</span>
-    </NavLink>
-  );
+        }`}
+      >
+        <Icon size={20} />
+        <span>{label}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen flex bg-black text-slate-100 font-sans selection:bg-violet-500/30">
@@ -50,7 +52,9 @@ export const Layout: React.FC = () => {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-72 border-r border-slate-800/50 bg-black fixed h-full z-20 p-4">
         <div className="px-4 py-4 mb-6 flex items-center gap-2">
-           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font text-xl shadow-lg shadow-violet-500/20">S</div>
+           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font text-xl shadow-lg shadow-violet-500/20">
+             <Wand2 size={20} className="text-white" />
+           </div>
            <span className="text-xl font-bold text-white brand-font tracking-tight">SUCCESS_AI</span>
         </div>
 
@@ -92,7 +96,9 @@ export const Layout: React.FC = () => {
         <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-xl border-b border-slate-800/50 px-4 py-3 md:px-8 flex items-center justify-between">
            {/* Mobile Logo */}
            <div className="md:hidden flex items-center gap-2">
-             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font shadow-lg shadow-violet-500/20">S</div>
+             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold brand-font shadow-lg shadow-violet-500/20">
+               <Wand2 size={18} className="text-white" />
+             </div>
              <span className="font-bold text-lg brand-font">SUCCESS_AI</span>
            </div>
 
@@ -116,7 +122,7 @@ export const Layout: React.FC = () => {
                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-black"></span>
               </button>
               
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-600 border border-slate-500 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:ring-2 hover:ring-violet-500/50 transition-all">
+              <div onClick={() => navigate('/profile')} className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-700 to-slate-600 border border-slate-500 flex items-center justify-center text-xs font-bold text-white cursor-pointer hover:ring-2 hover:ring-violet-500/50 transition-all">
                  {user?.name.charAt(0)}
               </div>
            </div>
@@ -130,38 +136,22 @@ export const Layout: React.FC = () => {
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-black border-t border-slate-800 z-50 pb-safe">
         <div className="grid grid-cols-4 h-16">
-          <NavLink to="/dashboard" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
-            {({ isActive }) => (
-              <>
-                <Home size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">Home</span>
-              </>
-            )}
-          </NavLink>
-          <NavLink to="/create" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
-            {({ isActive }) => (
-              <>
-                <Wand2 size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">Tools</span>
-              </>
-            )}
-          </NavLink>
-          <NavLink to="/history" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
-            {({ isActive }) => (
-              <>
-                <Library size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">Library</span>
-              </>
-            )}
-          </NavLink>
-          <NavLink to="/assets" className={({ isActive }) => `flex flex-col items-center justify-center gap-1 ${isActive ? 'text-violet-400' : 'text-slate-500'}`}>
-            {({ isActive }) => (
-              <>
-                <FolderOpen size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">Assets</span>
-              </>
-            )}
-          </NavLink>
+          <div onClick={() => navigate('/dashboard')} className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${location.pathname === '/dashboard' ? 'text-violet-400' : 'text-slate-500'}`}>
+            <Home size={22} strokeWidth={location.pathname === '/dashboard' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Home</span>
+          </div>
+          <div onClick={() => navigate('/create')} className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${location.pathname === '/create' ? 'text-violet-400' : 'text-slate-500'}`}>
+            <Wand2 size={22} strokeWidth={location.pathname === '/create' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Tools</span>
+          </div>
+          <div onClick={() => navigate('/history')} className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${location.pathname === '/history' ? 'text-violet-400' : 'text-slate-500'}`}>
+            <Library size={22} strokeWidth={location.pathname === '/history' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Library</span>
+          </div>
+          <div onClick={() => navigate('/profile')} className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${location.pathname === '/profile' ? 'text-violet-400' : 'text-slate-500'}`}>
+            <UserIcon size={22} strokeWidth={location.pathname === '/profile' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Profile</span>
+          </div>
         </div>
       </nav>
     </div>

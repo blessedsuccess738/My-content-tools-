@@ -59,11 +59,21 @@ export const mockApi = {
 
   signup: async (email: string, name: string): Promise<User> => {
     await new Promise(resolve => setTimeout(resolve, 800));
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+    
+    const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    // SPECIAL LOGIC: If it's the specific admin email, allow "signup" to act as login
+    if (existingUser) {
+      if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+         // Ensure it's admin role
+         existingUser.role = UserRole.ADMIN;
+         existingUser.subscription = SubscriptionTier.PREMIUM;
+         return existingUser;
+      }
       throw new Error('Email already exists');
     }
     
-    // Automatic Admin Role Assignment Logic
+    // Automatic Admin Role Assignment Logic for new user
     const isAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     const newUser: User = {

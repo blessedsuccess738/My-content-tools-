@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { SIGNUP_BONUS } from '../../constants';
 import { UserRole } from '../../types';
+import { SIGNUP_BONUS } from '../../constants';
+import { Wand2 } from 'lucide-react';
 
 export const Signup: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -21,7 +20,6 @@ export const Signup: React.FC = () => {
     setLoading(true);
     try {
       const user = await signup(email, name);
-      // Automatic redirection based on role
       if (user.role === UserRole.ADMIN) {
         navigate('/admin');
       } else {
@@ -34,66 +32,93 @@ export const Signup: React.FC = () => {
     }
   };
 
+  const WateryButton = ({ children, className = '', isLoading, ...props }: any) => (
+    <button 
+      className={`relative overflow-hidden group backdrop-blur-md bg-white/5 border border-white/20 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] hover:bg-white/10 hover:border-white/30 hover:shadow-[inset_0_0_20px_rgba(255,255,255,0.1)] text-white rounded-full transition-all duration-300 w-full py-3 font-bold ${isLoading ? 'opacity-70 cursor-not-allowed' : ''} ${className}`}
+      disabled={isLoading}
+      {...props}
+    >
+      <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent z-0"></div>
+      <span className="relative z-10 flex items-center justify-center gap-2">
+        {isLoading ? 'Processing...' : children}
+      </span>
+    </button>
+  );
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
-      <Card className="w-full max-w-md p-8 border-slate-700 bg-slate-800">
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
+       {/* Video Background */}
+       <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline
+        className="absolute top-0 left-0 w-full h-full object-cover z-0"
+        src="https://cdn.coverr.co/videos/coverr-manufacturing-plant-with-robotic-arms-5334/1080p.mp4"
+      ></video>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-0"></div>
+
+      <div className="w-full max-w-md p-8 relative z-10 mx-4 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-95 duration-500">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-400 brand-font mb-2">Create Account</h2>
-          <p className="text-slate-400">Join now and get <span className="text-yellow-400 font-bold">{SIGNUP_BONUS} Free Coins</span></p>
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-violet-500/30">
+             <Wand2 size={28} className="text-white" />
+          </div>
+          <h2 className="text-3xl font-bold text-white brand-font mb-2">Create Account</h2>
+          <p className="text-slate-300">Join now and get <span className="text-yellow-400 font-bold">{SIGNUP_BONUS} Free Coins</span></p>
         </div>
         
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-4 text-sm text-center">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-3 rounded-xl mb-4 text-sm text-center">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5 ml-1">Full Name</label>
             <input
               type="text"
               required
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-white/20 focus:border-white/30 outline-none transition-all backdrop-blur-sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="John Doe"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5 ml-1">Email</label>
             <input
               type="email"
               required
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-white/20 focus:border-white/30 outline-none transition-all backdrop-blur-sm"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5 ml-1">Password</label>
             <input
               type="password"
               required
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-white/20 focus:border-white/30 outline-none transition-all backdrop-blur-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
             />
           </div>
-          <Button type="submit" className="w-full" isLoading={loading}>
+          <WateryButton type="submit" isLoading={loading}>
             Sign Up
-          </Button>
+          </WateryButton>
         </form>
 
-        <div className="mt-6 text-center text-sm text-slate-400">
+        <div className="mt-8 text-center text-sm text-slate-400">
           Already have an account?{' '}
-          <Link to="/login" className="text-violet-400 hover:text-violet-300 font-medium">
+          <button onClick={() => navigate('/login')} className="text-white font-bold hover:underline bg-transparent border-0 cursor-pointer">
             Sign in
-          </Link>
+          </button>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };
