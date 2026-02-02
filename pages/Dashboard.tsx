@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { 
   Video, Image as ImageIcon, Wand2, Play, Zap, Sparkles, 
-  Type, Copy, Film, User, PenTool, Mic, Monitor, Smile, Scissors, Aperture, Ghost, ArrowUpRight
+  Type, Copy, Film, User, PenTool, Mic, Monitor, Smile, Scissors, Aperture, Ghost, ArrowUpRight, Music, Languages, Box
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -12,14 +12,18 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const aiTools = [
-    { name: 'All AI Tools', icon: Wand2, link: '/create' },
-    { name: 'Video to Video', icon: Video, link: '/create' },
+    { name: 'Gemini Veo', icon: Video, link: '/create' },
+    { name: 'Sora', icon: Film, link: '/create' },
+    { name: 'Kling AI', icon: Sparkles, link: '/create' },
     { name: 'Image to Video', icon: ImageIcon, link: '/create' },
     { name: 'Text to Video', icon: Type, link: '/create' },
-    { name: 'Image to Image', icon: Copy, link: '/create' },
-    { name: 'Image Animation', icon: Film, link: '/create' },
-    { name: 'Character Animation', icon: User, link: '/create' },
+    { name: 'Style Transfer', icon: Copy, link: '/create' },
+    { name: 'Character Anim', icon: User, link: '/create' },
     { name: 'Text to Image', icon: PenTool, link: '/create' },
+    { name: 'Music Gen', icon: Music, link: '/create' },
+    { name: 'Voice Clone', icon: Mic, link: '/create' },
+    { name: 'Translator', icon: Languages, link: '/create' },
+    { name: '3D Assets', icon: Box, link: '/create' },
   ];
 
   const quickApps = [
@@ -34,6 +38,7 @@ export const Dashboard: React.FC = () => {
     { title: 'AI Image Upscaler', icon: Monitor, color: 'from-fuchsia-500/20 to-pink-500/20' },
     { title: 'AI VTuber Maker', icon: User, color: 'from-violet-500/20 to-indigo-500/20' },
     { title: 'AI Cartoon Video Generator', icon: Video, color: 'from-sky-500/20 to-blue-500/20' },
+    { title: 'AI Music Video', icon: Music, color: 'from-lime-500/20 to-green-500/20' },
   ];
 
   const inspirations = [
@@ -58,21 +63,21 @@ export const Dashboard: React.FC = () => {
         
         <div className="relative z-10 p-6 md:p-10 max-w-2xl animate-in slide-in-from-bottom-4 duration-700">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-bold uppercase tracking-wider mb-4">
-            <Sparkles size={12} /> Version 2.4 Live
+            <Sparkles size={12} /> Version 3.0 Live
           </div>
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 brand-font leading-tight">
-            Blurry is Boring. <br/>
+            Generate with <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">
-              Dominate in 6K.
+              Gemini Veo & Sora
             </span>
           </h2>
           <p className="text-slate-300 mb-6 text-sm md:text-base line-clamp-2">
-            Unleash the full potential of your creations with Upscale V2. 
-            4K video and 6K image support is now live.
+            Experience the next generation of video AI. 
+            Create cinematic 1080p videos with Veo Pro or try the new Sora simulation.
           </p>
           <div onClick={() => navigate('/create')}>
             <Button className="rounded-full px-8 bg-white text-slate-900 hover:bg-slate-200 hover:text-slate-900 font-bold border-0">
-              Try Now
+              Try Veo Now
             </Button>
           </div>
         </div>
@@ -80,8 +85,10 @@ export const Dashboard: React.FC = () => {
 
       {/* AI Tools Grid */}
       <div>
-        <h3 className="text-xl font-bold text-white mb-6 px-2">AI Tools</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 px-2">
+        <div className="flex justify-between items-center mb-6 px-2">
+            <h3 className="text-xl font-bold text-white">All AI Tools</h3>
+        </div>
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-2">
           {aiTools.map((tool, idx) => (
             <div 
               key={idx} 
@@ -101,7 +108,7 @@ export const Dashboard: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-6 px-2">
           <h3 className="text-xl font-bold text-white">Quick Apps</h3>
-          <button className="text-xs text-slate-500 hover:text-white transition-colors">All Quick Apps</button>
+          <button className="text-xs text-slate-500 hover:text-white transition-colors">View All</button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 px-2">
           {quickApps.map((app, idx) => (

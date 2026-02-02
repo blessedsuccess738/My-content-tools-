@@ -33,7 +33,7 @@ let jobs: VideoJob[] = [
     progress: 100,
     inputImageUrl: 'https://picsum.photos/400/600',
     motionTemplateId: 'motion-1',
-    config: { quality: 'medium', duration: 8, aspectRatio: '9:16' },
+    config: { quality: 'medium', duration: 8, aspectRatio: '9:16', modelId: 'veo-fast' },
     outputVideoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', // Sample video
     createdAt: new Date(Date.now() - 86400000).toISOString(),
     cost: 50

@@ -1,511 +1,569 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { DanceMotion, VideoJob, GenerationStatus, VideoConfig, VideoQuality, AspectRatio } from '../types';
-import { MOTION_TEMPLATES, GENERATION_COST } from '../constants';
+import { VideoJob, GenerationStatus, VideoConfig, AspectRatio } from '../types';
+import { GENERATION_COST, VIDEO_STYLES, StyleModel } from '../constants';
+import { 
+  Upload, Wand2, Smartphone, Monitor, Square, 
+  Sparkles, RefreshCw, Coins, Zap, CheckCircle, Video, 
+  History, X, ChevronRight, Image as ImageIcon, Type, Film,
+  SlidersHorizontal, Lock, Play, Pause, Trash2, Plus
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { Upload, Wand2, ArrowRight, PlayCircle, Clock, Smartphone, Monitor, Square, Sparkles, RefreshCw, Coins } from 'lucide-react';
 
-const steps = ['Input Character', 'Select Motion', 'Configure', 'Generate'];
+type Tab = 'image-to-video' | 'video-to-video' | 'text-to-video';
 
 export const Create: React.FC = () => {
   const { user, refreshUser } = useAuth();
-  const [currentStep, setCurrentStep] = useState(0);
   
-  // Data State
-  const [inputType, setInputType] = useState<'upload' | 'ai'>('upload');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [aiGeneratedImageUrl, setAiGeneratedImageUrl] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<Tab>('image-to-video');
+  const [showStyleModal, setShowStyleModal] = useState(false);
+  const [showTasks, setShowTasks] = useState(false); // Mobile task drawer
+
+  // Configuration State
+  const [selectedStyle, setSelectedStyle] = useState<StyleModel>(VIDEO_STYLES[0]);
+  const [prompt, setPrompt] = useState('');
   
-  const [selectedMotion, setSelectedMotion] = useState<DanceMotion | null>(null);
-  const [customMotionFile, setCustomMotionFile] = useState<File | null>(null);
-  const [customMotionPreview, setCustomMotionPreview] = useState<string | null>(null);
+  // File Inputs
+  const [primaryFile, setPrimaryFile] = useState<File | null>(null); // Image for Img2Vid, Video for Vid2Vid
+  const [primaryPreview, setPrimaryPreview] = useState<string | null>(null);
+  
+  // Specific for Video-to-Video Motion Transfer
+  const [refImageFile, setRefImageFile] = useState<File | null>(null);
+  const [refImagePreview, setRefImagePreview] = useState<string | null>(null);
+  
+  // Settings
+  const [duration, setDuration] = useState<number>(5);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('9:16');
+  const [isRelaxMode, setIsRelaxMode] = useState(false);
+  const [noWatermark, setNoWatermark] = useState(false);
 
-  const [config, setConfig] = useState<VideoConfig>({
-    quality: 'medium',
-    duration: 8,
-    aspectRatio: '9:16'
-  });
-
+  // Job State
+  const [isGenerating, setIsGenerating] = useState(false); // Button loading state
+  const [activeJobs, setActiveJobs] = useState<VideoJob[]>([]);
+  const [error, setError] = useState('');
   const [currentCost, setCurrentCost] = useState(GENERATION_COST);
 
-  // UI State
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [job, setJob] = useState<VideoJob | null>(null);
-  const [error, setError] = useState('');
-
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  const refInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate Dynamic Cost
+  // Calculate Cost
   useEffect(() => {
-    let cost = GENERATION_COST;
-    // Add 30% for High Quality
-    if (config.quality === 'high') {
-      cost += Math.ceil(GENERATION_COST * 0.3);
-    }
-    // Add 30% for Duration > 10s
-    if (config.duration > 10) {
-      cost += Math.ceil(GENERATION_COST * 0.3);
-    }
+    let cost = 15;
+    if (duration > 5) cost += 10;
+    if (activeTab === 'text-to-video') cost = 7;
+    // Vid2Vid is more expensive
+    if (activeTab === 'video-to-video') cost += 10;
     setCurrentCost(cost);
-  }, [config]);
+  }, [duration, activeTab]);
 
-  // Polling for job status
+  // Polling for jobs (Background)
   useEffect(() => {
-    let interval: any;
-    if (job && job.status === GenerationStatus.PROCESSING) {
-      interval = setInterval(async () => {
-        try {
-          const updatedJob = await api.checkJobStatus(job.id);
-          setJob(updatedJob);
-          if (updatedJob.status === GenerationStatus.COMPLETED || updatedJob.status === GenerationStatus.FAILED) {
-            clearInterval(interval);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }, 5000); // Poll every 5 seconds for real API
-    }
-    return () => clearInterval(interval);
-  }, [job]);
+    const interval = setInterval(async () => {
+      if (activeJobs.length === 0) return;
+      
+      // We only poll jobs that aren't done
+      const processingJobs = activeJobs.filter(j => 
+        j.status === GenerationStatus.PROCESSING || j.status === GenerationStatus.PENDING
+      );
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (processingJobs.length === 0) return;
+
+      const updatedJobs = [...activeJobs];
+      for (const job of processingJobs) {
+        try {
+           const statusUpdate = await api.checkJobStatus(job.id);
+           const index = updatedJobs.findIndex(j => j.id === job.id);
+           if (index !== -1) updatedJobs[index] = statusUpdate;
+        } catch (e) { console.error(e); }
+      }
+      setActiveJobs(updatedJobs);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeJobs]);
+
+  const handlePrimaryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setAiGeneratedImageUrl(null);
+      setPrimaryFile(file);
+      setPrimaryPreview(URL.createObjectURL(file));
       setError('');
     }
   };
 
-  const handleGenerateAIImage = async () => {
-    if (!aiPrompt.trim()) return;
-    setIsGeneratingImage(true);
-    setError('');
-    try {
-      const url = await api.generateAIImage(aiPrompt);
-      setAiGeneratedImageUrl(url);
-      setPreviewUrl(url);
-      setSelectedImage(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to generate image. Please check API Key.");
-    } finally {
-      setIsGeneratingImage(false);
-    }
-  };
-
-  const handleCustomMotionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('video/')) {
-      setCustomMotionFile(file);
-      setCustomMotionPreview(URL.createObjectURL(file));
-      setSelectedMotion({
-        id: 'custom',
-        name: 'Custom Upload',
-        category: 'Custom',
-        thumbnailUrl: '',
-        duration: 0
-      });
-      setError('');
+    if (file) {
+      setRefImageFile(file);
+      setRefImagePreview(URL.createObjectURL(file));
     }
   };
 
   const startGeneration = async () => {
-    if (!user || !selectedMotion) return;
+    if (!user) return;
     if (user.coins < currentCost) {
-      setError(`Insufficient coins. You need ${currentCost} coins.`);
+      setError(`Insufficient coins. Need ${currentCost}.`);
       return;
     }
+    
+    // Validation
+    if (activeTab === 'image-to-video' && !primaryFile) {
+        setError('Please upload an image first.');
+        return;
+    }
+    if (activeTab === 'video-to-video' && !primaryFile) {
+        setError('Please upload a source video.');
+        return;
+    }
+    if (activeTab === 'text-to-video' && !prompt.trim()) {
+        setError('Please enter a prompt.');
+        return;
+    }
 
-    setIsGenerating(true);
+    setIsGenerating(true); // Button spinner
     setError('');
 
+    const config: VideoConfig = {
+        quality: 'medium',
+        duration: duration,
+        aspectRatio: aspectRatio,
+        modelId: 'veo-fast'
+    };
+
+    // Style prompt modification
+    const finalPrompt = prompt + (selectedStyle ? `, ${selectedStyle.promptModifier}` : '');
+
     try {
+      // API Call
       const newJob = await api.startGeneration(
         user.id, 
-        selectedImage, 
-        selectedMotion.id,
+        activeTab === 'image-to-video' ? primaryFile : null, 
+        'motion-1', // Generic template ID
         config,
-        customMotionFile,
-        aiGeneratedImageUrl || undefined
+        activeTab === 'video-to-video' ? primaryFile : null, // Pass video file as "customMotionFile"
+        undefined,
+        refImageFile || undefined // Pass reference image for character replacement
       );
-      setJob(newJob);
-      await refreshUser(); // Update coin balance in UI
-      setCurrentStep(3); // Wait screen
+      
+      // Update UI immediately (non-blocking)
+      setActiveJobs(prev => [newJob, ...prev]);
+      await refreshUser();
+      
+      // UX: Show tasks sidebar on desktop, or toast on mobile
+      if (window.innerWidth >= 768) {
+         // Desktop: Maybe flash the sidebar? 
+      } else {
+         setShowTasks(true); // Mobile: Open task drawer briefly or rely on badge
+      }
+
+      // Optional: Clear inputs? DomoAI usually keeps them to regenerate.
+      // We will keep inputs.
+
     } catch (err: any) {
       setError(err.message || 'Generation failed');
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false); // Stop button spinner
     }
   };
 
+  // --- UI Components ---
+
+  const TabButton = ({ id, label }: { id: Tab, label: string }) => (
+    <button 
+      onClick={() => { setActiveTab(id); setPrimaryFile(null); setPrimaryPreview(null); setRefImageFile(null); setRefImagePreview(null); }}
+      className={`pb-3 px-1 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
+        activeTab === id 
+          ? 'border-[#22c55e] text-[#22c55e]' 
+          : 'border-transparent text-slate-400 hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  const AspectRatioSelector = () => (
+    <div className="space-y-3">
+        <div className="flex justify-between items-center">
+            <span className="text-sm font-bold text-white">Ratio</span>
+            <span className="text-xs text-slate-500">Auto</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+            {[
+                { id: '1:1', label: '1:1', icon: Square },
+                { id: '16:9', label: '16:9', icon: Monitor },
+                { id: '9:16', label: '9:16', icon: Smartphone },
+            ].map((ratio) => (
+                <button
+                key={ratio.id}
+                onClick={() => setAspectRatio(ratio.id as AspectRatio)}
+                className={`flex flex-col items-center justify-center py-2 rounded-lg border text-[10px] font-medium transition-all ${
+                    aspectRatio === ratio.id 
+                    ? 'bg-[#1a1a1a] border-[#22c55e] text-white' 
+                    : 'bg-transparent border-slate-800 text-slate-500 hover:bg-slate-900'
+                }`}
+                >
+                <ratio.icon size={16} className="mb-1" />
+                {ratio.label}
+                </button>
+            ))}
+        </div>
+    </div>
+  );
+
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Progress Steps */}
-      <div className="flex justify-between mb-8 relative">
-        <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-800 -z-10 -translate-y-1/2 rounded-full"></div>
-        {steps.map((step, idx) => (
-          <div key={idx} className={`flex items-center gap-2 bg-slate-900 px-2 ${idx <= currentStep ? 'text-violet-400' : 'text-slate-500'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${idx <= currentStep ? 'border-violet-500 bg-violet-500/10' : 'border-slate-700 bg-slate-800'}`}>
-              {idx + 1}
-            </div>
-            <span className="hidden md:block font-medium">{step}</span>
-          </div>
-        ))}
+    <div className="min-h-[85vh] flex flex-col relative pb-32 md:pb-0">
+      
+      {/* 1. Header Navigation Tabs */}
+      <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-md pt-2">
+          <div className="flex items-center gap-6 border-b border-slate-800 mb-6 overflow-x-auto no-scrollbar px-1">
+            <TabButton id="image-to-video" label="Image to Video" />
+            <TabButton id="video-to-video" label="Video to Video" />
+            <TabButton id="text-to-video" label="Text to Video" />
+        </div>
       </div>
 
-      <div className="min-h-[500px]">
-        {/* STEP 1: INPUT */}
-        {currentStep === 0 && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold mb-2">Input Character</h2>
-            <p className="text-slate-400 mb-6">Upload a photo or generate a unique character with AI.</p>
+      <div className="flex-1 flex flex-col lg:flex-row gap-8">
+        
+        {/* LEFT COLUMN: Main Workspace */}
+        <div className="flex-1 space-y-6">
             
-            {/* Input Type Tabs */}
-            <div className="flex gap-4 mb-6">
-              <button 
-                onClick={() => setInputType('upload')}
-                className={`flex-1 py-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${inputType === 'upload' ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
-              >
-                <Upload size={20} /> Upload Photo
-              </button>
-              <button 
-                onClick={() => setInputType('ai')}
-                className={`flex-1 py-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${inputType === 'ai' ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
-              >
-                <Sparkles size={20} /> Generate with AI
-              </button>
-            </div>
-
-            <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all min-h-[400px] flex flex-col items-center justify-center ${
-                previewUrl ? 'border-violet-500/50 bg-violet-500/5' : 'border-slate-700 bg-slate-900/50'
-              }`}>
-              
-              {inputType === 'upload' ? (
-                <>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    ref={fileInputRef}
-                    onChange={handleImageUpload}
-                  />
-                  {previewUrl ? (
-                    <div className="relative inline-block animate-in zoom-in duration-300">
-                      <img src={previewUrl} alt="Preview" className="max-h-80 rounded-lg shadow-2xl border border-white/10" />
-                      <button 
-                        onClick={() => { setSelectedImage(null); setPreviewUrl(null); }}
-                        className="absolute -top-3 -right-3 bg-red-500 rounded-full p-1.5 text-white shadow-lg hover:bg-red-600 transition-transform hover:scale-110"
-                      >
-                        <Upload size={14} />
-                      </button>
+            {/* Style Selector (DomoAI Style) */}
+            <div 
+                onClick={() => setShowStyleModal(true)}
+                className="bg-[#0f0f0f] border border-slate-800 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-slate-600 transition-colors group"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-700 group-hover:border-[#22c55e] transition-colors">
+                        <img src={selectedStyle.thumbnail} alt="Style" className="w-full h-full object-cover" />
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center cursor-pointer hover:scale-105 transition-transform duration-200" onClick={() => fileInputRef.current?.click()}>
-                      <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 text-slate-400 shadow-xl border border-slate-700">
-                        <Upload size={32} />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Click to Upload</h3>
-                      <p className="text-slate-400">JPG, PNG up to 10MB</p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="w-full max-w-md">
-                   {previewUrl ? (
-                      <div className="relative inline-block animate-in zoom-in duration-300 mb-6">
-                        <img src={previewUrl} alt="AI Generated" className="max-h-80 rounded-lg shadow-2xl border border-white/10" />
-                        <button 
-                          onClick={() => { setPreviewUrl(null); setAiGeneratedImageUrl(null); }}
-                          className="absolute -top-3 -right-3 bg-slate-700 rounded-full p-2 text-white shadow-lg hover:bg-slate-600 border border-slate-500"
-                        >
-                          <RefreshCw size={14} />
-                        </button>
-                      </div>
-                   ) : (
-                     <div className="flex flex-col items-center w-full">
-                        <div className="w-16 h-16 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-violet-500/20">
-                           <Wand2 size={32} className="text-white" />
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-white text-base">{selectedStyle.name}</h3>
+                            <span className="text-[10px] bg-[#22c55e]/10 text-[#22c55e] px-1.5 py-0.5 rounded font-bold border border-[#22c55e]/20">V6 Model</span>
                         </div>
-                        <textarea
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                          placeholder="Describe a character... e.g. A futuristic robot dancer with neon blue lights, dark alley background"
-                          className="w-full h-32 bg-black/40 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none resize-none mb-4 transition-all"
-                        />
-                        <Button 
-                          onClick={handleGenerateAIImage} 
-                          disabled={!aiPrompt.trim()} 
-                          isLoading={isGeneratingImage}
-                          className="w-full py-3"
-                        >
-                          Generate Character
-                        </Button>
-                     </div>
-                   )}
+                        <p className="text-xs text-slate-500 mt-1">{selectedStyle.description}</p>
+                    </div>
                 </div>
-              )}
+                <ChevronRight size={20} className="text-slate-500 group-hover:text-white" />
             </div>
 
-            {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-200 rounded-lg text-center text-sm">{error}</div>}
+            {/* MAIN CANVAS AREA */}
+            <div className="relative">
+                {/* Main Upload Box */}
+                <div className="aspect-[4/3] md:aspect-[16/9] bg-[#0a0a0a] rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center relative overflow-hidden group">
+                    {primaryPreview ? (
+                        <>
+                            {activeTab === 'video-to-video' ? (
+                                <video src={primaryPreview} className="w-full h-full object-contain" autoPlay muted loop />
+                            ) : (
+                                <img src={primaryPreview} alt="Preview" className="w-full h-full object-contain" />
+                            )}
+                            <button 
+                                onClick={() => { setPrimaryPreview(null); setPrimaryFile(null); }}
+                                className="absolute top-4 right-4 bg-black/60 p-2 rounded-full text-white hover:bg-red-500 transition-colors z-10"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </>
+                    ) : (
+                        activeTab === 'text-to-video' ? (
+                             <div className="w-full h-full p-6 relative">
+                                 <textarea 
+                                    className="w-full h-full bg-transparent text-white text-xl placeholder:text-slate-700 outline-none resize-none font-light"
+                                    placeholder="Describe the video you want. Clear details make the result better."
+                                    value={prompt}
+                                    onChange={(e) => setPrompt(e.target.value)}
+                                 />
+                                 <div className="absolute bottom-6 left-6 flex gap-2">
+                                    <button className="px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center gap-1 hover:text-white hover:border-slate-600 transition-colors">
+                                        <Sparkles size={12} className="text-[#22c55e]" /> AI optimize
+                                    </button>
+                                 </div>
+                             </div>
+                        ) : (
+                            <div 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-slate-900/30 transition-colors"
+                            >
+                                <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 text-slate-400 group-hover:text-white group-hover:scale-110 transition-all">
+                                    {activeTab === 'video-to-video' ? <Video size={28} /> : <ImageIcon size={28} />}
+                                </div>
+                                <span className="font-bold text-slate-200 mb-1">Click to Upload {activeTab === 'image-to-video' ? 'Image' : 'Video'}</span>
+                                <p className="text-xs text-slate-600">Supports JPG, PNG, MP4</p>
+                            </div>
+                        )
+                    )}
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept={activeTab === 'video-to-video' ? "video/*" : "image/*"}
+                        onChange={handlePrimaryUpload}
+                    />
+                </div>
 
-            <div className="mt-6 flex justify-end">
-              <Button 
-                disabled={!previewUrl} 
-                onClick={() => setCurrentStep(1)}
-              >
-                Next Step <ArrowRight size={18} />
-              </Button>
+                {/* SPECIAL FEATURE: Reference Image for Video-to-Video (Character Replacement) */}
+                {activeTab === 'video-to-video' && (
+                    <div className="mt-4 animate-in slide-in-from-bottom-2 fade-in">
+                        <div className="flex items-center justify-between mb-2">
+                           <label className="text-sm font-bold text-white flex items-center gap-2">
+                              <ImageIcon size={14} className="text-[#22c55e]" /> 
+                              Character Reference
+                           </label>
+                           <span className="text-[10px] text-slate-500 uppercase tracking-wider">Optional</span>
+                        </div>
+                        
+                        <div className="flex gap-4 items-start">
+                            <div 
+                                onClick={() => refInputRef.current?.click()}
+                                className="w-24 h-32 rounded-lg border border-dashed border-slate-700 bg-[#0f0f0f] flex flex-col items-center justify-center cursor-pointer hover:border-[#22c55e]/50 hover:bg-[#22c55e]/5 transition-all relative overflow-hidden"
+                            >
+                                {refImagePreview ? (
+                                    <>
+                                        <img src={refImagePreview} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                            <RefreshCw size={16} className="text-white" />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={20} className="text-slate-500 mb-1" />
+                                        <span className="text-[10px] text-slate-500">Add Image</span>
+                                    </>
+                                )}
+                                <input type="file" ref={refInputRef} className="hidden" accept="image/*" onChange={handleRefImageUpload} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                    Upload an image of a person to replace the character in the video while keeping the original motion.
+                                    <br/><span className="text-slate-600">Best results with full-body shots on clear backgrounds.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-          </div>
-        )}
 
-        {/* STEP 2: MOTION */}
-        {currentStep === 1 && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold mb-2">Select Dance Motion</h2>
-            <p className="text-slate-400 mb-6">Choose a choreography style or upload your own reference video.</p>
+            {/* Prompt Input for Image/Video modes */}
+            {activeTab !== 'text-to-video' && (
+                <div className="bg-[#0f0f0f] border border-slate-800 rounded-xl p-4">
+                    <label className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">Prompt</label>
+                    <textarea 
+                        className="w-full bg-transparent text-white text-sm placeholder:text-slate-600 outline-none resize-none h-12"
+                        placeholder={activeTab === 'video-to-video' ? "Describe the new style (e.g. Japanese anime girl dancing)" : "Describe the motion (e.g. Camera zooms in, character smiles)"}
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                    />
+                </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {/* Custom Upload Card */}
-              <div 
-                onClick={() => videoInputRef.current?.click()}
-                className={`cursor-pointer rounded-xl overflow-hidden border-2 border-dashed flex flex-col items-center justify-center bg-slate-800/50 p-6 min-h-[12rem] relative group transition-all ${
-                   selectedMotion?.id === 'custom' ? 'border-violet-500 ring-2 ring-violet-500/50' : 'border-slate-700 hover:border-slate-500'
-                }`}
-              >
-                 <input 
-                  type="file" 
-                  accept="video/*" 
-                  className="hidden" 
-                  ref={videoInputRef} 
-                  onChange={handleCustomMotionUpload} 
-                 />
+            {error && <div className="p-3 bg-red-500/10 text-red-400 text-xs text-center rounded-lg border border-red-500/20">{error}</div>}
+        </div>
+
+        {/* RIGHT COLUMN: Settings Panel */}
+        <div className="w-full lg:w-80 space-y-6">
+            <div className="bg-[#0f0f0f] rounded-xl border border-slate-800 p-5 space-y-6">
+                
+                {/* Duration */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                         <span className="text-sm font-bold text-white">Duration</span>
+                         <span className="text-xs text-slate-500 flex items-center gap-1"><History size={10} /> {duration}s</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {[3, 5, 10].map(d => (
+                            <button 
+                                key={d}
+                                onClick={() => setDuration(d)}
+                                className={`py-2 text-xs font-bold rounded-lg border transition-all ${duration === d ? 'bg-[#22c55e]/10 border-[#22c55e] text-[#22c55e]' : 'bg-transparent border-slate-800 text-slate-400 hover:text-white'}`}
+                            >
+                                {d}s
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <AspectRatioSelector />
+
+                {/* Toggles */}
+                <div className="space-y-4 pt-2 border-t border-slate-800">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-400">
+                           <span className="text-sm">Relax Mode</span>
+                           <Lock size={12} className="opacity-50" />
+                        </div>
+                        <div className={`w-10 h-5 rounded-full p-1 transition-colors cursor-pointer ${isRelaxMode ? 'bg-[#22c55e]' : 'bg-slate-700'}`} onClick={() => setIsRelaxMode(!isRelaxMode)}>
+                           <div className={`w-3 h-3 bg-white rounded-full transition-transform ${isRelaxMode ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-400">
+                           <span className="text-sm">No Watermark</span>
+                           <Lock size={12} className="opacity-50" />
+                        </div>
+                         <div className={`w-10 h-5 rounded-full p-1 transition-colors cursor-pointer ${noWatermark ? 'bg-[#22c55e]' : 'bg-slate-700'}`} onClick={() => setNoWatermark(!noWatermark)}>
+                           <div className={`w-3 h-3 bg-white rounded-full transition-transform ${noWatermark ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Desktop Active Tasks List (Persistent) */}
+            <div className="hidden lg:block bg-[#0f0f0f] rounded-xl border border-slate-800 p-4 min-h-[200px]">
+                 <div className="flex items-center justify-between mb-4">
+                     <h3 className="text-sm font-bold text-white flex items-center gap-2"><History size={14} /> Task History</h3>
+                     <span className="text-xs text-slate-500">{activeJobs.length} tasks</span>
+                 </div>
                  
-                 {customMotionPreview ? (
-                    <video src={customMotionPreview} className="absolute inset-0 w-full h-full object-cover" muted loop autoPlay />
-                 ) : (
-                   <>
-                     <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center mb-4 text-slate-400 group-hover:text-white group-hover:bg-slate-600 transition-colors">
-                       <Upload size={24} />
-                     </div>
-                     <span className="font-bold text-slate-300">Upload Custom</span>
-                     <span className="text-xs text-slate-500 mt-1">MP4, MOV up to 30s</span>
-                   </>
-                 )}
-                 {selectedMotion?.id === 'custom' && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                       <span className="text-white font-bold flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full"></div> Selected</span>
-                    </div>
-                 )}
-              </div>
-
-              {/* Template Cards */}
-              {MOTION_TEMPLATES.map((motion) => (
-                <div 
-                  key={motion.id}
-                  onClick={() => {
-                    setSelectedMotion(motion);
-                    setCustomMotionFile(null);
-                    setCustomMotionPreview(null);
-                  }}
-                  className={`cursor-pointer rounded-xl overflow-hidden border-2 transition-all relative group ${
-                    selectedMotion?.id === motion.id ? 'border-violet-500 ring-2 ring-violet-500/50' : 'border-transparent hover:border-slate-600'
-                  }`}
-                >
-                  <img src={motion.thumbnailUrl} alt={motion.name} className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-4 flex flex-col justify-end">
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">{motion.category}</span>
-                        <h4 className="text-white font-bold">{motion.name}</h4>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
-                        <PlayCircle size={16} fill="currentColor" className="text-white/80" />
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-slate-400 flex items-center gap-1">
-                      <Clock size={12} /> {motion.duration}s
-                    </div>
-                  </div>
-                </div>
-              ))}
+                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                     {activeJobs.length === 0 ? (
+                         <div className="text-center py-8 text-slate-600 text-xs">No active tasks</div>
+                     ) : (
+                         activeJobs.map(job => (
+                             <div key={job.id} className="flex gap-3 items-start group relative">
+                                 <div className="w-12 h-16 bg-slate-900 rounded border border-slate-800 overflow-hidden shrink-0">
+                                     {job.status === GenerationStatus.COMPLETED ? (
+                                         <video src={job.outputVideoUrl} className="w-full h-full object-cover" />
+                                     ) : (
+                                         <div className="w-full h-full flex items-center justify-center">
+                                             <div className="w-4 h-4 border-2 border-[#22c55e] border-t-transparent rounded-full animate-spin"></div>
+                                         </div>
+                                     )}
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                     <div className="flex justify-between items-start">
+                                         <span className="text-xs font-bold text-white truncate block">Video Generation</span>
+                                         <span className="text-[10px] text-slate-500">{new Date(job.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                     </div>
+                                     <div className="mt-1">
+                                         {job.status === GenerationStatus.COMPLETED ? (
+                                             <span className="text-[10px] text-[#22c55e] flex items-center gap-1"><CheckCircle size={10} /> Completed</span>
+                                         ) : job.status === GenerationStatus.FAILED ? (
+                                             <span className="text-[10px] text-red-500">Failed</span>
+                                         ) : (
+                                             <div className="w-full bg-slate-800 h-1 rounded-full mt-1">
+                                                 <div className="bg-[#22c55e] h-full rounded-full transition-all duration-500" style={{width: `${job.progress}%`}}></div>
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                             </div>
+                         ))
+                     )}
+                 </div>
             </div>
+        </div>
 
-            <div className="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700">
-              <Button variant="secondary" onClick={() => setCurrentStep(0)}>Back</Button>
-              <Button 
-                disabled={!selectedMotion} 
-                onClick={() => setCurrentStep(2)}
-              >
-                Configure Settings <ArrowRight size={18} />
-              </Button>
-            </div>
+      </div>
+
+      {/* FIXED BOTTOM BAR (Canvas UI) */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-black/90 backdrop-blur-xl border-t border-white/5 lg:relative lg:bg-transparent lg:border-0 lg:p-0 lg:mt-8 z-30">
+          <div className="max-w-7xl mx-auto flex items-center gap-4">
+             {/* Mobile: Task Drawer Toggle */}
+             <button 
+                onClick={() => setShowTasks(!showTasks)}
+                className="lg:hidden w-12 h-12 rounded-full bg-[#1e1e1e] flex items-center justify-center text-white border border-slate-700 hover:bg-slate-700 relative"
+             >
+                 <History size={20} />
+                 {activeJobs.some(j => j.status === GenerationStatus.PROCESSING) && (
+                     <span className="absolute top-0 right-0 w-3 h-3 bg-[#22c55e] rounded-full border-2 border-black"></span>
+                 )}
+             </button>
+
+             <button className="hidden lg:flex w-12 h-12 rounded-full bg-[#1e1e1e] items-center justify-center text-white border border-slate-700 hover:bg-slate-700">
+                 <SlidersHorizontal size={20} />
+             </button>
+             
+             <Button 
+                onClick={startGeneration}
+                isLoading={isGenerating}
+                className="flex-1 h-12 bg-[#22c55e] hover:bg-[#16a34a] text-black font-bold text-base rounded-full shadow-[0_0_20px_rgba(34,197,94,0.3)] border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isGenerating}
+             >
+                Generate ({currentCost}<Coins size={14} className="inline -mt-0.5 ml-0.5" />)
+             </Button>
           </div>
-        )}
+      </div>
 
-        {/* STEP 3: CONFIGURE */}
-        {currentStep === 2 && (
-           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto">
-             <h2 className="text-2xl font-bold mb-2">Video Settings</h2>
-             <p className="text-slate-400 mb-8">Fine-tune your generation output.</p>
-
-             <Card className="space-y-8">
-               {/* Aspect Ratio */}
-               <div>
-                 <label className="block text-sm font-medium text-slate-300 mb-3">Aspect Ratio</label>
-                 <div className="grid grid-cols-3 gap-4">
-                   {[
-                     { id: '9:16', label: 'Story', icon: Smartphone },
-                     { id: '16:9', label: 'Landscape', icon: Monitor },
-                     { id: '1:1', label: 'Square', icon: Square }
-                   ].map((ratio) => (
-                     <button
-                       key={ratio.id}
-                       onClick={() => setConfig({...config, aspectRatio: ratio.id as AspectRatio})}
-                       className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                         config.aspectRatio === ratio.id 
-                           ? 'border-violet-500 bg-violet-500/10 text-white' 
-                           : 'border-slate-700 hover:border-slate-600 text-slate-400'
-                       }`}
-                     >
-                       <ratio.icon size={24} className="mb-2" />
-                       <span className="text-sm font-medium">{ratio.label}</span>
-                       <span className="text-xs opacity-60">{ratio.id}</span>
-                     </button>
-                   ))}
-                 </div>
-               </div>
-
-               {/* Quality */}
-               <div>
-                 <label className="block text-sm font-medium text-slate-300 mb-3">Generation Quality</label>
-                 <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1 rounded-lg">
-                   {['low', 'medium', 'high'].map((q) => (
-                     <button
-                       key={q}
-                       onClick={() => setConfig({...config, quality: q as VideoQuality})}
-                       className={`py-2 px-4 rounded-md text-sm font-medium capitalize transition-all ${
-                         config.quality === q
-                           ? 'bg-slate-700 text-white shadow-sm'
-                           : 'text-slate-400 hover:text-slate-200'
-                       }`}
-                     >
-                       {q}
-                       {q === 'high' && <span className="ml-1 text-[10px] text-yellow-500 font-bold">+30%</span>}
-                     </button>
-                   ))}
-                 </div>
-                 <p className="text-xs text-slate-500 mt-2">Higher quality takes longer and consumes more resources.</p>
-               </div>
-
-               {/* Duration */}
-               <div>
-                  <div className="flex justify-between mb-2">
-                    <label className="text-sm font-medium text-slate-300">Duration</label>
-                    <div className="text-right">
-                       <span className="text-sm font-bold text-violet-400 block">{config.duration} seconds</span>
-                       {config.duration > 10 && <span className="text-[10px] text-yellow-500 font-bold">+30% Cost</span>}
-                    </div>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="5" 
-                    max="15" 
-                    step="1"
-                    value={config.duration}
-                    onChange={(e) => setConfig({...config, duration: parseInt(e.target.value)})}
-                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                  />
-                  <div className="flex justify-between mt-1 text-xs text-slate-500">
-                    <span>5s</span>
-                    <span>15s</span>
-                  </div>
-               </div>
-             </Card>
-
-             <div className="flex justify-between items-center mt-8 bg-slate-800 p-4 rounded-xl border border-slate-700">
-              <div>
-                <span className="text-slate-400 text-sm">Estimated Cost</span>
-                <div className="flex items-center gap-2 text-yellow-400 font-bold text-xl">
-                  <Coins size={20} />
-                  {currentCost} <span className="text-sm font-normal text-slate-400">Coins</span>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>Back</Button>
-                 <Button 
-                   onClick={startGeneration}
-                   isLoading={isGenerating}
-                 >
-                   <Wand2 size={18} /> Generate Video
-                 </Button>
-              </div>
-            </div>
-            {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
-           </div>
-        )}
-
-        {/* STEP 4: PROCESSING / RESULT */}
-        {(currentStep === 3 || job) && (
-          <div className="animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center justify-center py-12">
-             {job?.status !== GenerationStatus.COMPLETED ? (
-               <div className="text-center w-full max-w-md">
-                 <div className="relative w-32 h-32 mx-auto mb-8">
-                    <div className="absolute inset-0 rounded-full border-4 border-slate-700"></div>
-                    <div className="absolute inset-0 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-2xl font-bold font-mono">{job?.progress}%</span>
-                    </div>
-                 </div>
-                 <h2 className="text-2xl font-bold mb-2 animate-pulse">Generating with Gemini Veo...</h2>
-                 <p className="text-slate-400 mb-8">AI is rendering the video. This can take a minute...</p>
-                 
-                 <div className="bg-slate-800 rounded-lg p-4 text-left text-sm font-mono text-slate-400 space-y-2">
-                   <p className={job?.progress! > 10 ? 'text-green-400' : ''}>[OK] Initializing Veo model...</p>
-                   <p className={job?.progress! > 30 ? 'text-green-400' : ''}>{job?.progress! > 30 ? '[OK]' : '[..]'} Processing input character...</p>
-                   <p className={job?.progress! > 50 ? 'text-green-400' : ''}>{job?.progress! > 50 ? '[OK]' : '[..]'} Synthesizing {job?.config?.duration}s motion...</p>
-                   <p className={job?.progress! > 90 ? 'text-green-400' : ''}>{job?.progress! > 90 ? '[OK]' : '[..]'} Finalizing render...</p>
-                 </div>
-               </div>
-             ) : (
-               <div className="w-full max-w-2xl text-center">
-                  <div className="bg-green-500/10 text-green-400 px-4 py-2 rounded-full inline-flex items-center gap-2 mb-6">
-                    <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                    Generation Complete!
+      {/* Style Modal */}
+      {showStyleModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end md:items-center justify-center">
+              <div className="bg-[#111] w-full md:w-[700px] md:rounded-2xl rounded-t-3xl border border-slate-800 max-h-[80vh] flex flex-col animate-in slide-in-from-bottom-10 duration-300">
+                  <div className="p-4 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-[#111] z-10 rounded-t-3xl">
+                      <h3 className="font-bold text-white">Select Style Model</h3>
+                      <button onClick={() => setShowStyleModal(false)} className="text-slate-400 hover:text-white"><X size={20} /></button>
                   </div>
                   
-                  <div className="relative aspect-[9/16] md:aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-700 mb-8">
-                     <video 
-                       src={job.outputVideoUrl} 
-                       controls 
-                       autoPlay 
-                       loop 
-                       className="w-full h-full object-contain"
-                     ></video>
+                  <div className="p-1 border-b border-slate-800 flex overflow-x-auto no-scrollbar">
+                       {['All', 'Popular', 'Anime', 'Realistic', '3D'].map(f => (
+                           <button key={f} className={`px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 ${f === 'All' ? 'text-white border-white' : 'text-slate-500 border-transparent hover:text-white'}`}>{f}</button>
+                       ))}
                   </div>
 
-                  <div className="flex gap-4 justify-center">
-                    <Button onClick={() => { setJob(null); setCurrentStep(0); setSelectedImage(null); setPreviewUrl(null); setAiGeneratedImageUrl(null); }}>
-                      Create Another
-                    </Button>
-                    <a href={job.outputVideoUrl} download target="_blank" rel="noreferrer">
-                      <Button variant="secondary">
-                        Download Video
-                      </Button>
-                    </a>
+                  <div className="p-5 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-4 custom-scrollbar">
+                      {VIDEO_STYLES.map(style => (
+                          <div 
+                            key={style.id}
+                            onClick={() => { setSelectedStyle(style); setShowStyleModal(false); }}
+                            className={`group relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${selectedStyle.id === style.id ? 'border-[#22c55e]' : 'border-transparent hover:border-slate-600'}`}
+                          >
+                              <img src={style.thumbnail} alt={style.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
+                                  <h4 className="text-white font-bold text-sm leading-tight mb-0.5">{style.name}</h4>
+                                  <p className="text-[10px] text-slate-400 line-clamp-1">{style.description}</p>
+                              </div>
+                              {selectedStyle.id === style.id && (
+                                  <div className="absolute top-2 right-2 bg-[#22c55e] rounded-full p-1 text-black shadow-lg">
+                                      <CheckCircle size={14} fill="currentColor" />
+                                  </div>
+                              )}
+                          </div>
+                      ))}
                   </div>
-               </div>
-             )}
+              </div>
           </div>
-        )}
-      </div>
+      )}
+
+      {/* Mobile Task Drawer */}
+      {showTasks && (
+          <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setShowTasks(false)}>
+              <div className="absolute bottom-0 left-0 right-0 bg-[#111] rounded-t-3xl p-5 max-h-[60vh] overflow-y-auto border-t border-slate-800 animate-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white flex items-center gap-2"><History size={18} /> Task History</h3>
+                      <button onClick={() => setShowTasks(false)}><X size={20} className="text-slate-400" /></button>
+                  </div>
+                  <div className="space-y-4">
+                     {activeJobs.map(job => (
+                         <div key={job.id} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex gap-3">
+                             <div className="w-16 h-20 bg-black rounded-lg overflow-hidden shrink-0 border border-slate-800">
+                                {job.status === GenerationStatus.COMPLETED ? (
+                                    <video src={job.outputVideoUrl} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <div className="w-5 h-5 border-2 border-[#22c55e] border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                )}
+                             </div>
+                             <div className="flex-1">
+                                 <div className="flex justify-between">
+                                     <span className="text-sm font-bold text-white">Generation</span>
+                                     <span className="text-xs text-slate-500">{job.progress}%</span>
+                                 </div>
+                                 <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 mb-2">
+                                     <div className="bg-[#22c55e] h-full rounded-full transition-all" style={{width: `${job.progress}%`}}></div>
+                                 </div>
+                                 {job.status === GenerationStatus.COMPLETED && (
+                                     <a href={job.outputVideoUrl} target="_blank" rel="noreferrer" className="text-xs text-[#22c55e] hover:underline">Download Video</a>
+                                 )}
+                             </div>
+                         </div>
+                     ))}
+                     {activeJobs.length === 0 && <p className="text-slate-500 text-center py-4">No recent tasks</p>}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

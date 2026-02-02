@@ -43,6 +43,7 @@ export interface VideoConfig {
   quality: VideoQuality;
   duration: number;
   aspectRatio: AspectRatio;
+  modelId: string; // New field for selecting AI Model
 }
 
 export interface VideoJob {
@@ -50,7 +51,9 @@ export interface VideoJob {
   userId: string;
   status: GenerationStatus;
   progress: number; // 0-100
-  inputImageUrl: string;
+  inputImageUrl: string; // Primary input (Image for img2vid, or Video thumbnail for vid2vid)
+  inputVideoUrl?: string; // For video2video source
+  referenceImageUrl?: string; // For motion transfer (Character image)
   motionTemplateId: string;
   customMotionUrl?: string;
   config: VideoConfig;
