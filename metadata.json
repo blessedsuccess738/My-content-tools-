@@ -1,0 +1,5 @@
+{
+  "name": "DanceGen AI",
+  "description": "AI-powered platform for generating realistic dance videos from images and reference motions using Stable Diffusion and AnimateDiff concepts.",
+  "requestFramePermissions": []
+}
