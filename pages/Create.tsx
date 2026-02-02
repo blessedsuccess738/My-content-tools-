@@ -1,20 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { mockApi } from '../services/mockApi';
+import { api } from '../services/api';
 import { DanceMotion, VideoJob, GenerationStatus, VideoConfig, VideoQuality, AspectRatio } from '../types';
 import { MOTION_TEMPLATES, GENERATION_COST } from '../constants';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { Upload, Wand2, ArrowRight, PlayCircle, Clock, Smartphone, Monitor, Square } from 'lucide-react';
+import { Upload, Wand2, ArrowRight, PlayCircle, Clock, Smartphone, Monitor, Square, Sparkles, RefreshCw, Coins } from 'lucide-react';
 
-const steps = ['Upload Image', 'Select Motion', 'Configure', 'Generate'];
+const steps = ['Input Character', 'Select Motion', 'Configure', 'Generate'];
 
 export const Create: React.FC = () => {
   const { user, refreshUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   
   // Data State
+  const [inputType, setInputType] = useState<'upload' | 'ai'>('upload');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [aiGeneratedImageUrl, setAiGeneratedImageUrl] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   
   const [selectedMotion, setSelectedMotion] = useState<DanceMotion | null>(null);
@@ -27,6 +31,8 @@ export const Create: React.FC = () => {
     aspectRatio: '9:16'
   });
 
+  const [currentCost, setCurrentCost] = useState(GENERATION_COST);
+
   // UI State
   const [isGenerating, setIsGenerating] = useState(false);
   const [job, setJob] = useState<VideoJob | null>(null);
@@ -35,21 +41,35 @@ export const Create: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
+  // Calculate Dynamic Cost
+  useEffect(() => {
+    let cost = GENERATION_COST;
+    // Add 30% for High Quality
+    if (config.quality === 'high') {
+      cost += Math.ceil(GENERATION_COST * 0.3);
+    }
+    // Add 30% for Duration > 10s
+    if (config.duration > 10) {
+      cost += Math.ceil(GENERATION_COST * 0.3);
+    }
+    setCurrentCost(cost);
+  }, [config]);
+
   // Polling for job status
   useEffect(() => {
     let interval: any;
     if (job && job.status === GenerationStatus.PROCESSING) {
       interval = setInterval(async () => {
         try {
-          const updatedJob = await mockApi.checkJobStatus(job.id);
+          const updatedJob = await api.checkJobStatus(job.id);
           setJob(updatedJob);
-          if (updatedJob.status === GenerationStatus.COMPLETED) {
+          if (updatedJob.status === GenerationStatus.COMPLETED || updatedJob.status === GenerationStatus.FAILED) {
             clearInterval(interval);
           }
         } catch (e) {
           console.error(e);
         }
-      }, 2000);
+      }, 5000); // Poll every 5 seconds for real API
     }
     return () => clearInterval(interval);
   }, [job]);
@@ -59,7 +79,24 @@ export const Create: React.FC = () => {
     if (file) {
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setAiGeneratedImageUrl(null);
       setError('');
+    }
+  };
+
+  const handleGenerateAIImage = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsGeneratingImage(true);
+    setError('');
+    try {
+      const url = await api.generateAIImage(aiPrompt);
+      setAiGeneratedImageUrl(url);
+      setPreviewUrl(url);
+      setSelectedImage(null);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate image. Please check API Key.");
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
@@ -79,24 +116,10 @@ export const Create: React.FC = () => {
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setError('');
-    }
-  };
-
   const startGeneration = async () => {
     if (!user || !selectedMotion) return;
-    if (user.coins < GENERATION_COST) {
-      setError('Insufficient coins to generate video.');
+    if (user.coins < currentCost) {
+      setError(`Insufficient coins. You need ${currentCost} coins.`);
       return;
     }
 
@@ -104,12 +127,13 @@ export const Create: React.FC = () => {
     setError('');
 
     try {
-      const newJob = await mockApi.startGeneration(
+      const newJob = await api.startGeneration(
         user.id, 
         selectedImage, 
         selectedMotion.id,
         config,
-        customMotionFile
+        customMotionFile,
+        aiGeneratedImageUrl || undefined
       );
       setJob(newJob);
       await refreshUser(); // Update coin balance in UI
@@ -137,51 +161,103 @@ export const Create: React.FC = () => {
       </div>
 
       <div className="min-h-[500px]">
-        {/* STEP 1: UPLOAD */}
+        {/* STEP 1: INPUT */}
         {currentStep === 0 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold mb-2">Upload Reference Image</h2>
-            <p className="text-slate-400 mb-6">Choose a full-body image of a character or person. Clear backgrounds work best.</p>
+            <h2 className="text-2xl font-bold mb-2">Input Character</h2>
+            <p className="text-slate-400 mb-6">Upload a photo or generate a unique character with AI.</p>
             
-            <div 
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all ${
-                previewUrl ? 'border-violet-500 bg-violet-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-              }`}
-            >
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-              />
+            {/* Input Type Tabs */}
+            <div className="flex gap-4 mb-6">
+              <button 
+                onClick={() => setInputType('upload')}
+                className={`flex-1 py-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${inputType === 'upload' ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
+              >
+                <Upload size={20} /> Upload Photo
+              </button>
+              <button 
+                onClick={() => setInputType('ai')}
+                className={`flex-1 py-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${inputType === 'ai' ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
+              >
+                <Sparkles size={20} /> Generate with AI
+              </button>
+            </div>
 
-              {previewUrl ? (
-                <div className="relative inline-block">
-                  <img src={previewUrl} alt="Preview" className="max-h-96 rounded-lg shadow-2xl" />
-                  <button 
-                    onClick={() => { setSelectedImage(null); setPreviewUrl(null); }}
-                    className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1 text-white shadow-lg hover:bg-red-600"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  </button>
-                </div>
+            <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all min-h-[400px] flex flex-col items-center justify-center ${
+                previewUrl ? 'border-violet-500/50 bg-violet-500/5' : 'border-slate-700 bg-slate-900/50'
+              }`}>
+              
+              {inputType === 'upload' ? (
+                <>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                  />
+                  {previewUrl ? (
+                    <div className="relative inline-block animate-in zoom-in duration-300">
+                      <img src={previewUrl} alt="Preview" className="max-h-80 rounded-lg shadow-2xl border border-white/10" />
+                      <button 
+                        onClick={() => { setSelectedImage(null); setPreviewUrl(null); }}
+                        className="absolute -top-3 -right-3 bg-red-500 rounded-full p-1.5 text-white shadow-lg hover:bg-red-600 transition-transform hover:scale-110"
+                      >
+                        <Upload size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center cursor-pointer hover:scale-105 transition-transform duration-200" onClick={() => fileInputRef.current?.click()}>
+                      <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 text-slate-400 shadow-xl border border-slate-700">
+                        <Upload size={32} />
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">Click to Upload</h3>
+                      <p className="text-slate-400">JPG, PNG up to 10MB</p>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="flex flex-col items-center cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                  <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-400">
-                    <Upload size={32} />
-                  </div>
-                  <h3 className="text-lg font-medium text-white mb-2">Click to upload or drag & drop</h3>
-                  <p className="text-sm text-slate-500">JPG, PNG up to 10MB</p>
+                <div className="w-full max-w-md">
+                   {previewUrl ? (
+                      <div className="relative inline-block animate-in zoom-in duration-300 mb-6">
+                        <img src={previewUrl} alt="AI Generated" className="max-h-80 rounded-lg shadow-2xl border border-white/10" />
+                        <button 
+                          onClick={() => { setPreviewUrl(null); setAiGeneratedImageUrl(null); }}
+                          className="absolute -top-3 -right-3 bg-slate-700 rounded-full p-2 text-white shadow-lg hover:bg-slate-600 border border-slate-500"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                      </div>
+                   ) : (
+                     <div className="flex flex-col items-center w-full">
+                        <div className="w-16 h-16 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-violet-500/20">
+                           <Wand2 size={32} className="text-white" />
+                        </div>
+                        <textarea
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder="Describe a character... e.g. A futuristic robot dancer with neon blue lights, dark alley background"
+                          className="w-full h-32 bg-black/40 border border-slate-700 rounded-xl p-4 text-white placeholder:text-slate-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none resize-none mb-4 transition-all"
+                        />
+                        <Button 
+                          onClick={handleGenerateAIImage} 
+                          disabled={!aiPrompt.trim()} 
+                          isLoading={isGeneratingImage}
+                          className="w-full py-3"
+                        >
+                          Generate Character
+                        </Button>
+                     </div>
+                   )}
                 </div>
               )}
             </div>
 
+            {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-200 rounded-lg text-center text-sm">{error}</div>}
+
             <div className="mt-6 flex justify-end">
               <Button 
-                disabled={!selectedImage} 
+                disabled={!previewUrl} 
                 onClick={() => setCurrentStep(1)}
               >
                 Next Step <ArrowRight size={18} />
@@ -322,6 +398,7 @@ export const Create: React.FC = () => {
                        }`}
                      >
                        {q}
+                       {q === 'high' && <span className="ml-1 text-[10px] text-yellow-500 font-bold">+30%</span>}
                      </button>
                    ))}
                  </div>
@@ -332,7 +409,10 @@ export const Create: React.FC = () => {
                <div>
                   <div className="flex justify-between mb-2">
                     <label className="text-sm font-medium text-slate-300">Duration</label>
-                    <span className="text-sm font-bold text-violet-400">{config.duration} seconds</span>
+                    <div className="text-right">
+                       <span className="text-sm font-bold text-violet-400 block">{config.duration} seconds</span>
+                       {config.duration > 10 && <span className="text-[10px] text-yellow-500 font-bold">+30% Cost</span>}
+                    </div>
                   </div>
                   <input 
                     type="range" 
@@ -354,7 +434,8 @@ export const Create: React.FC = () => {
               <div>
                 <span className="text-slate-400 text-sm">Estimated Cost</span>
                 <div className="flex items-center gap-2 text-yellow-400 font-bold text-xl">
-                  {GENERATION_COST} <span className="text-sm font-normal text-slate-400">Coins</span>
+                  <Coins size={20} />
+                  {currentCost} <span className="text-sm font-normal text-slate-400">Coins</span>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -383,14 +464,14 @@ export const Create: React.FC = () => {
                       <span className="text-2xl font-bold font-mono">{job?.progress}%</span>
                     </div>
                  </div>
-                 <h2 className="text-2xl font-bold mb-2 animate-pulse">Synthesizing Motion...</h2>
-                 <p className="text-slate-400 mb-8">AI is extracting pose data and rendering frames. This usually takes about 30-60 seconds.</p>
+                 <h2 className="text-2xl font-bold mb-2 animate-pulse">Generating with Gemini Veo...</h2>
+                 <p className="text-slate-400 mb-8">AI is rendering the video. This can take a minute...</p>
                  
                  <div className="bg-slate-800 rounded-lg p-4 text-left text-sm font-mono text-slate-400 space-y-2">
-                   <p className={job?.progress! > 10 ? 'text-green-400' : ''}>[OK] Initializing pipeline ({job?.config?.quality} quality)...</p>
-                   <p className={job?.progress! > 30 ? 'text-green-400' : ''}>[OK] Extracting skeletal rig from reference...</p>
-                   <p className={job?.progress! > 50 ? 'text-green-400' : ''}>{job?.progress! > 50 ? '[OK]' : '[..]'} Applying ControlNet to {job?.config?.aspectRatio} canvas...</p>
-                   <p className={job?.progress! > 80 ? 'text-green-400' : ''}>{job?.progress! > 80 ? '[OK]' : '[..]'} Stitching {job?.config?.duration}s video...</p>
+                   <p className={job?.progress! > 10 ? 'text-green-400' : ''}>[OK] Initializing Veo model...</p>
+                   <p className={job?.progress! > 30 ? 'text-green-400' : ''}>{job?.progress! > 30 ? '[OK]' : '[..]'} Processing input character...</p>
+                   <p className={job?.progress! > 50 ? 'text-green-400' : ''}>{job?.progress! > 50 ? '[OK]' : '[..]'} Synthesizing {job?.config?.duration}s motion...</p>
+                   <p className={job?.progress! > 90 ? 'text-green-400' : ''}>{job?.progress! > 90 ? '[OK]' : '[..]'} Finalizing render...</p>
                  </div>
                </div>
              ) : (
@@ -411,12 +492,12 @@ export const Create: React.FC = () => {
                   </div>
 
                   <div className="flex gap-4 justify-center">
-                    <Button onClick={() => { setJob(null); setCurrentStep(0); setSelectedImage(null); setPreviewUrl(null); }}>
+                    <Button onClick={() => { setJob(null); setCurrentStep(0); setSelectedImage(null); setPreviewUrl(null); setAiGeneratedImageUrl(null); }}>
                       Create Another
                     </Button>
-                    <a href={job.outputVideoUrl} download>
+                    <a href={job.outputVideoUrl} download target="_blank" rel="noreferrer">
                       <Button variant="secondary">
-                        Download MP4
+                        Download Video
                       </Button>
                     </a>
                   </div>

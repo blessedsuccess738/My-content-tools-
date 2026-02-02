@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { mockApi } from '../services/mockApi';
+import { api } from '../services/api';
 import { User, SystemStats, SubscriptionTier } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -17,8 +17,8 @@ export const Admin: React.FC = () => {
     setLoading(true);
     try {
       const [s, u] = await Promise.all([
-        mockApi.getStats(),
-        mockApi.getAllUsers()
+        api.getStats(),
+        api.getAllUsers()
       ]);
       setStats(s);
       setUsers(u);
@@ -36,17 +36,17 @@ export const Admin: React.FC = () => {
   }, [isAdmin]);
 
   const handleBan = async (userId: string, currentStatus: boolean) => {
-    await mockApi.banUser(userId, !currentStatus);
+    await api.banUser(userId, !currentStatus);
     loadData();
   };
 
   const handleAddCoins = async (userId: string) => {
-    await mockApi.addCoins(userId, 500);
+    await api.addCoins(userId, 500);
     loadData();
   };
 
   const handleSubscriptionChange = async (userId: string, tier: string) => {
-    await mockApi.updateUserSubscription(userId, tier as SubscriptionTier);
+    await api.updateUserSubscription(userId, tier as SubscriptionTier);
     loadData();
   };
 

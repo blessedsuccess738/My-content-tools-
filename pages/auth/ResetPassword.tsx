@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { mockApi } from '../../services/mockApi';
+import { api } from '../../services/api';
 import { CheckCircle, AlertCircle, Wand2 } from 'lucide-react';
 
 export const ResetPassword: React.FC = () => {
@@ -40,7 +40,7 @@ export const ResetPassword: React.FC = () => {
 
     setLoading(true);
     try {
-      await mockApi.resetPassword(token, password);
+      await api.resetPassword(token, password);
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Failed to reset password');

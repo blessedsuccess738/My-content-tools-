@@ -55,6 +55,7 @@ export interface VideoJob {
   customMotionUrl?: string;
   config: VideoConfig;
   outputVideoUrl?: string;
+  operationName?: string; // For tracking Gemini Veo operations
   createdAt: string;
   cost: number;
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockApi } from '../../services/mockApi';
+import { api } from '../../services/api';
 import { ArrowLeft, CheckCircle, ExternalLink, Wand2 } from 'lucide-react';
 
 export const ForgotPassword: React.FC = () => {
@@ -15,7 +15,7 @@ export const ForgotPassword: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await mockApi.requestPasswordReset(email);
+      await api.requestPasswordReset(email);
       setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message || 'Failed to request password reset');

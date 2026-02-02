@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { mockApi } from '../services/mockApi';
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -21,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const storedUserId = localStorage.getItem('dancegen_user_id');
     if (storedUserId) {
-      mockApi.getUser(storedUserId)
+      api.getUser(storedUserId)
         .then(u => {
           setUser(u);
           setIsAuthenticated(true);
@@ -33,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string): Promise<User> => {
-    const u = await mockApi.login(email);
+    const u = await api.login(email);
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem('dancegen_user_id', u.id);
@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (email: string, name: string): Promise<User> => {
-    const u = await mockApi.signup(email, name);
+    const u = await api.signup(email, name);
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem('dancegen_user_id', u.id);
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUser = async () => {
     if (user) {
-      const updated = await mockApi.getUser(user.id);
+      const updated = await api.getUser(user.id);
       setUser(updated);
     }
   };
