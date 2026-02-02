@@ -35,7 +35,17 @@ const initDb = () => {
 };
 initDb();
 
-// Helper to convert File or URL to Base64 (without data: prefix for API if needed, but SDK usually handles it or needs raw base64)
+// Safely get API Key
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY;
+  } catch (error) {
+    console.warn("API Key not found in environment variables");
+    return undefined;
+  }
+};
+
+// Helper to convert File or URL to Base64
 async function getBase64FromUrlOrFile(input: File | string): Promise<string> {
   if (input instanceof File) {
     return new Promise((resolve, reject) => {
@@ -144,14 +154,15 @@ export const api = {
 
   // --- GOOGLE GENAI INTEGRATION ---
   generateAIImage: async (prompt: string): Promise<string> => {
-    if (!process.env.API_KEY) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
       console.warn("Missing API Key");
       await new Promise(resolve => setTimeout(resolve, 1500));
       return `https://picsum.photos/1024/1024?random=${Date.now()}`;
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -185,35 +196,26 @@ export const api = {
     config: VideoConfig,
     customMotionFile: File | null,
     aiGeneratedImageUrl?: string,
-    referenceImageFile?: File // New optional parameter for motion transfer
+    referenceImageFile?: File 
   ): Promise<VideoJob> => {
     const users = db.getUsers();
     const user = users.find(u => u.id === userId);
     if (!user) throw new Error('User not found');
 
-    // 1. Determine Model and Base Cost
-    // In new UI, we simplified model selection, so we default to Veo if not strictly set or use passed config
-    const selectedModelConfig = AI_MODELS.find(m => m.id === config.modelId) || AI_MODELS[0];
-    
-    // 2. Dynamic Cost Calculation (Simulated logic from Create.tsx logic)
-    // We trust the frontend calculated cost logic for demo, but normally verify here.
     let estimatedCost = 15;
     if (config.duration > 5) estimatedCost += 10;
-    // Add extra cost if doing motion transfer (video to video with reference)
     if (customMotionFile) estimatedCost += 10;
     
     if (user.coins < estimatedCost) throw new Error('Insufficient coins');
 
-    // Deduct coins
     user.coins -= estimatedCost;
     db.setUsers(users.map(u => u.id === userId ? user : u));
 
-    // Prepare Input Image for Veo (This is the PRIMARY image - either the source for img2vid or the reference char for vid2vid)
     let inputUrl = 'https://picsum.photos/400/600';
     let base64Image = '';
     
     try {
-      const fileToProcess = referenceImageFile || imageFile; // If doing motion transfer, ref image takes precedence as "image input" to Veo
+      const fileToProcess = referenceImageFile || imageFile; 
       if (aiGeneratedImageUrl) {
           inputUrl = aiGeneratedImageUrl;
           base64Image = await getBase64FromUrlOrFile(aiGeneratedImageUrl);
@@ -226,26 +228,22 @@ export const api = {
     }
 
     let operationName = undefined;
+    const apiKey = getApiKey();
 
-    // Call Real Gemini Veo API if Key exists
-    if (process.env.API_KEY && base64Image) {
+    if (apiKey && base64Image) {
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI({ apiKey });
         
-        // Use the mapped API model
         const apiModelToUse = 'veo-3.1-fast-generate-preview';
-        
-        // Build Prompt
-        // If customMotionFile (Video) is present, it's a Video-to-Video / Motion Transfer request
-        // Veo API primarily accepts prompts + image inputs. It doesn't natively support "video file input" in this simple SDK wrapper usually.
-        // However, for "Video Stylization", we typically use prompt description. 
-        // For this demo, we assume the "base64Image" we processed above is the visual anchor (Character)
-        // and the prompt describes the motion/style.
         
         const finalPrompt = customMotionFile 
           ? `Cinematic video, character motion transfer, high quality, 4k. Style matching the reference image.` 
           : `Cinematic video, high quality, 4k`; 
 
+        // Veo only supports 16:9 or 9:16. Default to 9:16 if 1:1 is selected.
+        let safeAspectRatio: '16:9' | '9:16' = '9:16';
+        if (config.aspectRatio === '16:9') safeAspectRatio = '16:9';
+        
         const operation = await ai.models.generateVideos({
           model: apiModelToUse,
           prompt: finalPrompt,
@@ -256,7 +254,7 @@ export const api = {
           config: {
             numberOfVideos: 1,
             resolution: '720p',
-            aspectRatio: config.aspectRatio, 
+            aspectRatio: safeAspectRatio, 
           }
         });
         operationName = operation.name;
@@ -294,12 +292,12 @@ export const api = {
     if (jobIndex === -1) throw new Error('Job not found');
 
     const job = jobs[jobIndex];
+    const apiKey = getApiKey();
 
-    // Real API Polling
     if (job.status === GenerationStatus.PROCESSING) {
-      if (job.operationName && process.env.API_KEY) {
+      if (job.operationName && apiKey) {
         try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const ai = new GoogleGenAI({ apiKey });
           let op = { name: job.operationName, done: false, result: {}, metadata: {} };
           
           const updatedOp = await ai.operations.getVideosOperation({ operation: op });
@@ -307,7 +305,7 @@ export const api = {
           if (updatedOp.done) {
              const videoUri = updatedOp.response?.generatedVideos?.[0]?.video?.uri;
              if (videoUri) {
-               job.outputVideoUrl = `${videoUri}&key=${process.env.API_KEY}`;
+               job.outputVideoUrl = `${videoUri}&key=${apiKey}`;
                job.status = GenerationStatus.COMPLETED;
                job.progress = 100;
              } else {

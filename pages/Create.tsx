@@ -7,7 +7,7 @@ import {
   Upload, Wand2, Smartphone, Monitor, Square, 
   Sparkles, RefreshCw, Coins, Zap, CheckCircle, Video, 
   History, X, ChevronRight, Image as ImageIcon, Type, Film,
-  SlidersHorizontal, Lock, Play, Pause, Trash2, Plus
+  SlidersHorizontal, Lock, Play, Pause, Trash2, Plus, User
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
@@ -26,10 +26,11 @@ export const Create: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   
   // File Inputs
-  const [primaryFile, setPrimaryFile] = useState<File | null>(null); // Image for Img2Vid, Video for Vid2Vid
+  // For Img2Vid: primaryFile = Image
+  // For Vid2Vid: primaryFile = Motion Video, refImageFile = Character Image
+  const [primaryFile, setPrimaryFile] = useState<File | null>(null); 
   const [primaryPreview, setPrimaryPreview] = useState<string | null>(null);
   
-  // Specific for Video-to-Video Motion Transfer
   const [refImageFile, setRefImageFile] = useState<File | null>(null);
   const [refImagePreview, setRefImagePreview] = useState<string | null>(null);
   
@@ -40,7 +41,7 @@ export const Create: React.FC = () => {
   const [noWatermark, setNoWatermark] = useState(false);
 
   // Job State
-  const [isGenerating, setIsGenerating] = useState(false); // Button loading state
+  const [isGenerating, setIsGenerating] = useState(false);
   const [activeJobs, setActiveJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState('');
   const [currentCost, setCurrentCost] = useState(GENERATION_COST);
@@ -63,7 +64,6 @@ export const Create: React.FC = () => {
     const interval = setInterval(async () => {
       if (activeJobs.length === 0) return;
       
-      // We only poll jobs that aren't done
       const processingJobs = activeJobs.filter(j => 
         j.status === GenerationStatus.PROCESSING || j.status === GenerationStatus.PENDING
       );
@@ -97,6 +97,7 @@ export const Create: React.FC = () => {
     if (file) {
       setRefImageFile(file);
       setRefImagePreview(URL.createObjectURL(file));
+      setError('');
     }
   };
 
@@ -112,16 +113,22 @@ export const Create: React.FC = () => {
         setError('Please upload an image first.');
         return;
     }
-    if (activeTab === 'video-to-video' && !primaryFile) {
-        setError('Please upload a source video.');
-        return;
+    if (activeTab === 'video-to-video') {
+        if (!primaryFile) {
+            setError('Please upload the Motion Video.');
+            return;
+        }
+        if (!refImageFile) {
+            setError('Please upload the Character Image.');
+            return;
+        }
     }
     if (activeTab === 'text-to-video' && !prompt.trim()) {
         setError('Please enter a prompt.');
         return;
     }
 
-    setIsGenerating(true); // Button spinner
+    setIsGenerating(true); 
     setError('');
 
     const config: VideoConfig = {
@@ -131,43 +138,30 @@ export const Create: React.FC = () => {
         modelId: 'veo-fast'
     };
 
-    // Style prompt modification
     const finalPrompt = prompt + (selectedStyle ? `, ${selectedStyle.promptModifier}` : '');
 
     try {
-      // API Call
       const newJob = await api.startGeneration(
         user.id, 
         activeTab === 'image-to-video' ? primaryFile : null, 
-        'motion-1', // Generic template ID
+        'motion-1', 
         config,
-        activeTab === 'video-to-video' ? primaryFile : null, // Pass video file as "customMotionFile"
+        activeTab === 'video-to-video' ? primaryFile : null, 
         undefined,
-        refImageFile || undefined // Pass reference image for character replacement
+        refImageFile || undefined 
       );
       
-      // Update UI immediately (non-blocking)
       setActiveJobs(prev => [newJob, ...prev]);
       await refreshUser();
       
-      // UX: Show tasks sidebar on desktop, or toast on mobile
-      if (window.innerWidth >= 768) {
-         // Desktop: Maybe flash the sidebar? 
-      } else {
-         setShowTasks(true); // Mobile: Open task drawer briefly or rely on badge
-      }
-
-      // Optional: Clear inputs? DomoAI usually keeps them to regenerate.
-      // We will keep inputs.
+      // Removed setShowTasks(true) to prevent blocking screen "Launch" effect
 
     } catch (err: any) {
       setError(err.message || 'Generation failed');
     } finally {
-      setIsGenerating(false); // Stop button spinner
+      setIsGenerating(false); 
     }
   };
-
-  // --- UI Components ---
 
   const TabButton = ({ id, label }: { id: Tab, label: string }) => (
     <button 
@@ -228,7 +222,7 @@ export const Create: React.FC = () => {
         {/* LEFT COLUMN: Main Workspace */}
         <div className="flex-1 space-y-6">
             
-            {/* Style Selector (DomoAI Style) */}
+            {/* Style Selector */}
             <div 
                 onClick={() => setShowStyleModal(true)}
                 className="bg-[#0f0f0f] border border-slate-800 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-slate-600 transition-colors group"
@@ -248,99 +242,112 @@ export const Create: React.FC = () => {
                 <ChevronRight size={20} className="text-slate-500 group-hover:text-white" />
             </div>
 
-            {/* MAIN CANVAS AREA */}
-            <div className="relative">
-                {/* Main Upload Box */}
-                <div className="aspect-[4/3] md:aspect-[16/9] bg-[#0a0a0a] rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center relative overflow-hidden group">
-                    {primaryPreview ? (
-                        <>
-                            {activeTab === 'video-to-video' ? (
-                                <video src={primaryPreview} className="w-full h-full object-contain" autoPlay muted loop />
-                            ) : (
-                                <img src={primaryPreview} alt="Preview" className="w-full h-full object-contain" />
-                            )}
-                            <button 
-                                onClick={() => { setPrimaryPreview(null); setPrimaryFile(null); }}
-                                className="absolute top-4 right-4 bg-black/60 p-2 rounded-full text-white hover:bg-red-500 transition-colors z-10"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </>
-                    ) : (
-                        activeTab === 'text-to-video' ? (
-                             <div className="w-full h-full p-6 relative">
-                                 <textarea 
-                                    className="w-full h-full bg-transparent text-white text-xl placeholder:text-slate-700 outline-none resize-none font-light"
-                                    placeholder="Describe the video you want. Clear details make the result better."
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                 />
-                                 <div className="absolute bottom-6 left-6 flex gap-2">
-                                    <button className="px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center gap-1 hover:text-white hover:border-slate-600 transition-colors">
-                                        <Sparkles size={12} className="text-[#22c55e]" /> AI optimize
-                                    </button>
-                                 </div>
-                             </div>
-                        ) : (
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-slate-900/30 transition-colors"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 text-slate-400 group-hover:text-white group-hover:scale-110 transition-all">
-                                    {activeTab === 'video-to-video' ? <Video size={28} /> : <ImageIcon size={28} />}
-                                </div>
-                                <span className="font-bold text-slate-200 mb-1">Click to Upload {activeTab === 'image-to-video' ? 'Image' : 'Video'}</span>
-                                <p className="text-xs text-slate-600">Supports JPG, PNG, MP4</p>
-                            </div>
-                        )
-                    )}
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept={activeTab === 'video-to-video' ? "video/*" : "image/*"}
-                        onChange={handlePrimaryUpload}
-                    />
-                </div>
-
-                {/* SPECIAL FEATURE: Reference Image for Video-to-Video (Character Replacement) */}
+            {/* MAIN CANVAS AREA - Dynamic Layout based on Tab */}
+            <div className="relative space-y-4">
+                
+                {/* 1. VIDEO TO VIDEO: Dual Input Layout (Character + Motion) */}
                 {activeTab === 'video-to-video' && (
-                    <div className="mt-4 animate-in slide-in-from-bottom-2 fade-in">
-                        <div className="flex items-center justify-between mb-2">
-                           <label className="text-sm font-bold text-white flex items-center gap-2">
-                              <ImageIcon size={14} className="text-[#22c55e]" /> 
-                              Character Reference
-                           </label>
-                           <span className="text-[10px] text-slate-500 uppercase tracking-wider">Optional</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Box 1: Character Image */}
+                        <div 
+                             onClick={() => refInputRef.current?.click()}
+                             className="aspect-[3/4] md:aspect-[4/3] bg-[#0a0a0a] rounded-xl border border-dashed border-slate-700 hover:border-[#22c55e] transition-all flex flex-col items-center justify-center relative overflow-hidden cursor-pointer group"
+                        >
+                            {refImagePreview ? (
+                                <>
+                                   <img src={refImagePreview} className="w-full h-full object-cover" />
+                                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                       <RefreshCw size={24} className="text-white" />
+                                       <span className="text-white font-bold ml-2">Replace Character</span>
+                                   </div>
+                                </>
+                            ) : (
+                                <div className="text-center p-4">
+                                   <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center mx-auto mb-3 text-[#22c55e]">
+                                      <ImageIcon size={24} />
+                                   </div>
+                                   <h4 className="text-sm font-bold text-white mb-1">1. Character Image</h4>
+                                   <p className="text-xs text-slate-500">The person you want to see</p>
+                                </div>
+                            )}
+                            <input type="file" ref={refInputRef} className="hidden" accept="image/*" onChange={handleRefImageUpload} />
                         </div>
-                        
-                        <div className="flex gap-4 items-start">
-                            <div 
-                                onClick={() => refInputRef.current?.click()}
-                                className="w-24 h-32 rounded-lg border border-dashed border-slate-700 bg-[#0f0f0f] flex flex-col items-center justify-center cursor-pointer hover:border-[#22c55e]/50 hover:bg-[#22c55e]/5 transition-all relative overflow-hidden"
-                            >
-                                {refImagePreview ? (
-                                    <>
-                                        <img src={refImagePreview} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                            <RefreshCw size={16} className="text-white" />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus size={20} className="text-slate-500 mb-1" />
-                                        <span className="text-[10px] text-slate-500">Add Image</span>
-                                    </>
-                                )}
-                                <input type="file" ref={refInputRef} className="hidden" accept="image/*" onChange={handleRefImageUpload} />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-xs text-slate-400 leading-relaxed">
-                                    Upload an image of a person to replace the character in the video while keeping the original motion.
-                                    <br/><span className="text-slate-600">Best results with full-body shots on clear backgrounds.</span>
-                                </p>
-                            </div>
+
+                        {/* Box 2: Motion Video */}
+                        <div 
+                             onClick={() => fileInputRef.current?.click()}
+                             className="aspect-[3/4] md:aspect-[4/3] bg-[#0a0a0a] rounded-xl border border-dashed border-slate-700 hover:border-[#22c55e] transition-all flex flex-col items-center justify-center relative overflow-hidden cursor-pointer group"
+                        >
+                            {primaryPreview ? (
+                                <>
+                                   <video src={primaryPreview} className="w-full h-full object-cover" autoPlay muted loop />
+                                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                       <RefreshCw size={24} className="text-white" />
+                                       <span className="text-white font-bold ml-2">Replace Motion</span>
+                                   </div>
+                                </>
+                            ) : (
+                                <div className="text-center p-4">
+                                   <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center mx-auto mb-3 text-violet-400">
+                                      <Video size={24} />
+                                   </div>
+                                   <h4 className="text-sm font-bold text-white mb-1">2. Motion Video</h4>
+                                   <p className="text-xs text-slate-500">The dance/movement source</p>
+                                </div>
+                            )}
+                            <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handlePrimaryUpload} />
                         </div>
+                    </div>
+                )}
+
+                {/* 2. IMAGE/TEXT TO VIDEO: Single Input Layout */}
+                {activeTab !== 'video-to-video' && (
+                    <div className="aspect-[4/3] md:aspect-[16/9] bg-[#0a0a0a] rounded-xl border border-dashed border-slate-800 flex flex-col items-center justify-center relative overflow-hidden group">
+                        {primaryPreview ? (
+                            <>
+                                <img src={primaryPreview} alt="Preview" className="w-full h-full object-contain" />
+                                <button 
+                                    onClick={() => { setPrimaryPreview(null); setPrimaryFile(null); }}
+                                    className="absolute top-4 right-4 bg-black/60 p-2 rounded-full text-white hover:bg-red-500 transition-colors z-10"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </>
+                        ) : (
+                            activeTab === 'text-to-video' ? (
+                                 <div className="w-full h-full p-6 relative">
+                                     <textarea 
+                                        className="w-full h-full bg-transparent text-white text-xl placeholder:text-slate-700 outline-none resize-none font-light"
+                                        placeholder="Describe the video you want. Clear details make the result better."
+                                        value={prompt}
+                                        onChange={(e) => setPrompt(e.target.value)}
+                                     />
+                                     <div className="absolute bottom-6 left-6 flex gap-2">
+                                        <button className="px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center gap-1 hover:text-white hover:border-slate-600 transition-colors">
+                                            <Sparkles size={12} className="text-[#22c55e]" /> AI optimize
+                                        </button>
+                                     </div>
+                                 </div>
+                            ) : (
+                                <div 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-slate-900/30 transition-colors"
+                                >
+                                    <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 text-slate-400 group-hover:text-white group-hover:scale-110 transition-all">
+                                        <ImageIcon size={28} />
+                                    </div>
+                                    <span className="font-bold text-slate-200 mb-1">Click to Upload Image</span>
+                                    <p className="text-xs text-slate-600">Supports JPG, PNG</p>
+                                </div>
+                            )
+                        )}
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handlePrimaryUpload}
+                        />
                     </div>
                 )}
             </div>
@@ -348,10 +355,12 @@ export const Create: React.FC = () => {
             {/* Prompt Input for Image/Video modes */}
             {activeTab !== 'text-to-video' && (
                 <div className="bg-[#0f0f0f] border border-slate-800 rounded-xl p-4">
-                    <label className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">Prompt</label>
+                    <label className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                        {activeTab === 'video-to-video' ? 'Style Prompt (Optional)' : 'Prompt'}
+                    </label>
                     <textarea 
                         className="w-full bg-transparent text-white text-sm placeholder:text-slate-600 outline-none resize-none h-12"
-                        placeholder={activeTab === 'video-to-video' ? "Describe the new style (e.g. Japanese anime girl dancing)" : "Describe the motion (e.g. Camera zooms in, character smiles)"}
+                        placeholder={activeTab === 'video-to-video' ? "E.g. Make it look like a 3D Pixar character" : "Describe the motion (e.g. Camera zooms in, character smiles)"}
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                     />
